@@ -2631,7 +2631,9 @@ $sendParentSms = static function (Request $request, SmsService $smsService) use 
         ])->post("{$supabaseUrl}/rest/v1/notifications", $notifications);
     }
 
-    $status = "Sent {$sent} SMS reminder(s).";
+    $status = config('services.sms.driver') === 'supabase_queue'
+        ? "Queued {$sent} SMS reminder(s) for the laptop GSM modem."
+        : "Sent {$sent} SMS reminder(s).";
     if ($failed) {
         $status .= ' Failed: '.implode(', ', $failed).'.';
     }
@@ -2668,7 +2670,9 @@ $sendStaffSms = static function (Request $request, SmsService $smsService) use (
         }
     }
 
-    $status = "Sent {$sent} staff SMS notification(s).";
+    $status = config('services.sms.driver') === 'supabase_queue'
+        ? "Queued {$sent} staff SMS notification(s) for the laptop GSM modem."
+        : "Sent {$sent} staff SMS notification(s).";
     if ($failed) {
         $status .= ' Failed: '.implode(', ', $failed).'.';
     }
@@ -2721,7 +2725,11 @@ Route::post('/staff/notifications/test-sms', function (Request $request, SmsServ
             ]);
         }
 
-        return back()->with('sms_success', 'SMS test completed using the '.ucfirst($result['driver']).' driver.');
+        $message = $result['driver'] === 'supabase_queue'
+            ? 'SMS test queued for the laptop GSM modem.'
+            : 'SMS test completed using the '.ucfirst($result['driver']).' driver.';
+
+        return back()->with('sms_success', $message);
     } catch (\Throwable $exception) {
         Log::error('SMS test failed.', ['message' => $exception->getMessage()]);
 

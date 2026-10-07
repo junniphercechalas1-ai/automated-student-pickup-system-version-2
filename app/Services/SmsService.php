@@ -26,6 +26,10 @@ class SmsService
             ];
         }
 
+        if ($driver === 'supabase_queue') {
+            return app(SupabaseSmsQueue::class)->enqueue($to, $message);
+        }
+
         if ($driver === 'gsm') {
             return $this->sendWithGsmModule($to, $message);
         }
@@ -58,6 +62,11 @@ class SmsService
             'driver' => 'twilio',
             'provider_id' => $response->json('sid'),
         ];
+    }
+
+    public function sendUsingGsm(string $to, string $message): array
+    {
+        return $this->sendWithGsmModule(PhoneNumber::normalize($to), $message);
     }
 
     private function sendWithGsmModule(string $to, string $message): array

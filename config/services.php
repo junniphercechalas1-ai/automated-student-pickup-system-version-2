@@ -37,6 +37,10 @@ return [
 
     'sms' => [
         'driver' => env('SMS_PROVIDER') ?: env('SMS_DRIVER', 'log'),
+        'queue' => [
+            'url' => env('SUPABASE_URL') ?: env('VITE_SUPABASE_URL'),
+            'service_key' => env('SUPABASE_SERVICE_KEY') ?: env('SUPABASE_SERVICE_ROLE_KEY'),
+        ],
         'gsm' => [
             'port' => env('GSM_SERIAL_PORT', 'COM10'),
             'baud_rate' => (int) env('GSM_BAUD_RATE', 19200),

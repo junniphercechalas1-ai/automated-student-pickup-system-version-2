@@ -70,3 +70,17 @@ The admin parent and student screens load records from Supabase through the Lara
 After saving environment changes, redeploy the service. The Dockerfile runs pending Laravel migrations at container startup. If the Render service uses a native runtime instead of the Dockerfile, run `php artisan migrate --force` as its deploy command.
 
 Parent support messages are stored in the Laravel database; parent and student profile records are stored in Supabase.
+
+## GSM SMS bridge
+
+Render cannot access a GSM modem plugged into a personal computer. To send bulk notifications with that modem, Render adds each SMS to the Supabase `sms_queue` table, and a worker running on the computer connected to the modem sends it.
+
+Configure the Render service with `SMS_PROVIDER=supabase_queue`, `SUPABASE_URL`, and `SUPABASE_SERVICE_KEY`. The queue table must allow the server-side service-role key to insert and update rows; its `id` must be generated, `status` must accept `pending`, `processing`, `sent`, and `failed`, and `provider_id` and `error_message` must be nullable. `expires_at`, `claimed_at`, and `completed_at` must allow the initial insert (nullable or defaulted). Keep the service-role key only in server-side environment settings or the laptop's local `.env`; do not use a `VITE_` variable or commit the key.
+
+On the Windows laptop connected to the GSM modem:
+
+1. Install the application dependencies and copy `.env.example` to `.env` if needed.
+2. Set `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` to the same Supabase project used by Render. Set `GSM_SERIAL_PORT` and `GSM_BAUD_RATE` for the connected modem.
+3. Run `php artisan sms:work` and leave it running. It polls the queue every five seconds by default. Use `php artisan sms:work --once` to process at most one pending message.
+
+The worker claims a row by changing `pending` to `processing` before sending. It then stores `sent` or `failed` and updates `provider_id`, `error_message`, and the claim/completion timestamps. The laptop must remain powered on, connected to the internet, and have the worker running to send queued messages.
