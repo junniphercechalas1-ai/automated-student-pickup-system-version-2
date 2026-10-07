@@ -58,3 +58,15 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
 "# automated-student-pickup-system" 
+
+## Render and Supabase
+
+The admin parent and student screens load records from Supabase through the Laravel server. In the Render service's environment settings, configure:
+
+- `SUPABASE_URL`: the Supabase project URL.
+- `SUPABASE_SERVICE_KEY`: the Supabase service-role key. Keep this server-side; never expose it through a `VITE_` variable.
+- `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`: the project URL and public anon key used by browser authentication. Make these available as Docker build arguments as well when building with the Dockerfile.
+
+After saving environment changes, redeploy the service. The Dockerfile runs pending Laravel migrations at container startup. If the Render service uses a native runtime instead of the Dockerfile, run `php artisan migrate --force` as its deploy command.
+
+Parent support messages are stored in the Laravel database; parent and student profile records are stored in Supabase.

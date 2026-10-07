@@ -225,7 +225,8 @@
             });
 
             if (!response.ok) {
-                throw new Error('Failed to load parents');
+                const payload = await response.json().catch(() => ({}));
+                throw new Error(payload.message || payload.error || `Failed to load parents (${response.status}).`);
             }
 
             const payload = await response.json();
@@ -295,8 +296,13 @@
             });
         } catch (error) {
             console.error('Error loading parents:', error);
-            document.getElementById('parentsTable').innerHTML =
-                '<tr><td colspan="8" class="px-6 py-4 text-center text-red-500">Error loading parents</td></tr>';
+            const row = document.createElement('tr');
+            const cell = document.createElement('td');
+            cell.colSpan = 8;
+            cell.className = 'px-6 py-4 text-center text-red-500';
+            cell.textContent = error instanceof Error ? error.message : 'Error loading parents. Please try again.';
+            row.appendChild(cell);
+            document.getElementById('parentsTable').replaceChildren(row);
         }
     }
 

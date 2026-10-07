@@ -967,9 +967,8 @@ class AdminController extends Controller
 
             if (! $supabaseUrl || ! $this->serviceKey()) {
                 return response()->json([
-                    'parents' => [],
-                    'counts' => ['total_parents' => 0, 'approved_parents' => 0, 'pending_parents' => 0, 'linked_to_students' => 0],
-                ], 200);
+                    'message' => 'Supabase is not configured for parent records. Set SUPABASE_URL and SUPABASE_SERVICE_KEY in the Render environment, then redeploy.',
+                ], 503);
             }
 
             /** @var \Illuminate\Http\Client\Response $parentsResponse */
@@ -980,16 +979,29 @@ class AdminController extends Controller
                 ]);
 
             if ($parentsResponse->failed()) {
-                return response()->json(['error' => 'Failed to fetch parents'], 500);
+                Log::error('Unable to fetch parent records from Supabase.', [
+                    'status' => $parentsResponse->status(),
+                ]);
+
+                return response()->json([
+                    'message' => 'Unable to load parent records from Supabase. Check the server logs for the request failure.',
+                ], 502);
             }
 
             $studentsResponse = Http::withHeaders($this->getHeaders())
                 ->get("{$supabaseUrl}/rest/v1/students", [
                     'select' => 'id,first_name,middle_name,last_name',
                 ]);
-            $students = $studentsResponse->successful()
-                ? collect($studentsResponse->json())->keyBy('id')
-                : collect();
+            if ($studentsResponse->failed()) {
+                Log::error('Unable to fetch student records while loading parent records.', [
+                    'status' => $studentsResponse->status(),
+                ]);
+
+                return response()->json([
+                    'message' => 'Unable to load linked student records from Supabase. Check the server logs for the request failure.',
+                ], 502);
+            }
+            $students = collect($studentsResponse->json())->keyBy('id');
 
             $parentsData = collect($parentsResponse->json());
             $parentAuthIds = $parentsData
