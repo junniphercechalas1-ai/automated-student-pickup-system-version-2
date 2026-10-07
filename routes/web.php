@@ -7,7 +7,6 @@ use App\Http\Middleware\EnsureAdminIsLoggedIn;
 use App\Services\SmsService;
 use App\Support\NameParts;
 use App\Support\PhoneNumberRegistrationGuard;
-use App\Support\PendingRegistrationSchema;
 use App\Support\UsernameIdentity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
