@@ -53,4 +53,4 @@ RUN sed -i 's/Listen 80/Listen 10000/' /etc/apache2/ports.conf \
 
 EXPOSE 10000
 
-CMD ["sh", "-c", "php artisan migrate --force && chown www-data:www-data database/database.sqlite && exec apache2-foreground"]
+CMD ["apache2-foreground"]
