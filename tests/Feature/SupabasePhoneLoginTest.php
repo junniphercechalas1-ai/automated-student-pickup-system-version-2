@@ -163,6 +163,114 @@ class SupabasePhoneLoginTest extends TestCase
         $this->assertTrue(Cache::missing('signup-phone-verification:'.$flowId));
     }
 
+    public function test_phone_verification_rejects_a_number_already_used_by_an_auth_account(): void
+    {
+        config([
+            'services.sms.driver' => 'twilio',
+            'services.sms.twilio.account_sid' => 'AC123',
+            'services.sms.twilio.auth_token' => 'test-token',
+            'services.sms.twilio.from' => '+15005550006',
+        ]);
+        Http::fake(function ($request) {
+            if (str_contains($request->url(), '/auth/v1/admin/users')) {
+                return Http::response(['users' => [[
+                    'id' => 'existing-staff-account',
+                    'phone' => '+639171234568',
+                    'user_metadata' => ['role' => 'staff'],
+                ]]], 200);
+            }
+
+            return Http::response([], 200);
+        });
+
+        $this->postJson('/supabase/phone-verification/request', [
+            'account_type' => 'parent',
+            'phone_number' => '09171234568',
+        ])->assertStatus(409)
+            ->assertJsonPath('message', 'This mobile number is already registered or has a registration awaiting review. Sign in or contact the administrator.');
+
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), 'api.twilio.com'));
+    }
+
+    public function test_phone_verification_rejects_a_legacy_parent_profile_number(): void
+    {
+        config([
+            'services.sms.driver' => 'twilio',
+            'services.sms.twilio.account_sid' => 'AC123',
+            'services.sms.twilio.auth_token' => 'test-token',
+            'services.sms.twilio.from' => '+15005550006',
+        ]);
+        Http::fake(function ($request) {
+            if (str_contains($request->url(), '/auth/v1/admin/users')) {
+                return Http::response(['users' => []], 200);
+            }
+
+            parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+            if (str_contains($request->url(), '/rest/v1/parents')
+                && ($query['mobile_number'] ?? null) === 'eq.09171234568') {
+                return Http::response([['mobile_number' => '09171234568']], 200);
+            }
+
+            if (str_contains($request->url(), '/rest/v1/parents')
+                && ($query['select'] ?? null) === 'mobile_number') {
+                return Http::response([], 200);
+            }
+
+            return Http::response([], 200);
+        });
+
+        $this->postJson('/supabase/phone-verification/request', [
+            'account_type' => 'staff',
+            'phone_number' => '+639171234568',
+        ])->assertStatus(409)
+            ->assertJsonPath('message', 'This mobile number is already registered or has a registration awaiting review. Sign in or contact the administrator.');
+
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), 'api.twilio.com'));
+    }
+
+    public function test_registration_rechecks_number_before_creating_pending_request(): void
+    {
+        Schema::create('pending_registrations', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->string('role', 20);
+            $table->string('phone_number', 20)->unique();
+            $table->longText('encrypted_password');
+            $table->json('details');
+            $table->string('status', 20)->default('pending');
+            $table->timestamps();
+            $table->index(['role', 'status']);
+        });
+        Cache::put('signup-phone-verification:'.str_repeat('a', 48), [
+            'phone' => '+639171234568',
+            'account_type' => 'staff',
+            'verified_at' => now()->timestamp,
+            'expires_at' => now()->addMinutes(5)->timestamp,
+        ], now()->addMinutes(5));
+        Http::fake(function ($request) {
+            if (str_contains($request->url(), '/auth/v1/admin/users')) {
+                return Http::response(['users' => [[
+                    'id' => 'existing-parent-account',
+                    'phone' => '09171234568',
+                    'user_metadata' => ['role' => 'parent'],
+                ]]], 200);
+            }
+
+            return Http::response([], 200);
+        });
+
+        $this->postJson('/supabase/register-user', [
+            'full_name' => 'New Staff',
+            'username' => 'newstaff1',
+            'password' => 'secret123',
+            'mobile_number' => '+639171234568',
+            'role' => 'staff',
+            'phone_verification_flow_id' => str_repeat('a', 48),
+        ])->assertStatus(409)
+            ->assertJsonPath('message', 'This mobile number is already registered or has a registration awaiting review. Sign in or contact the administrator.');
+
+        $this->assertDatabaseCount('pending_registrations', 0);
+    }
+
     public function test_signup_cannot_create_an_auth_user_without_a_verified_phone(): void
     {
         Http::fake();

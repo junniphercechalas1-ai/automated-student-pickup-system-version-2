@@ -6,6 +6,8 @@ use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\EnsureAdminIsLoggedIn;
 use App\Services\SmsService;
 use App\Support\NameParts;
+use App\Support\PhoneNumberRegistrationGuard;
+use App\Support\PendingRegistrationSchema;
 use App\Support\UsernameIdentity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -856,7 +858,7 @@ Route::post('/supabase/username-activate', function (Request $request) {
     return response()->json(['message' => 'Username set. You can now sign in with your username and existing password.']);
 });
 
-Route::post('/supabase/register-user', function (Request $request) {
+Route::post('/supabase/register-user', function (Request $request, PhoneNumberRegistrationGuard $phoneNumberGuard) {
     $request->validate([
         'full_name' => 'required|string',
         'password' => 'required|string|min:8',
@@ -902,6 +904,24 @@ Route::post('/supabase/register-user', function (Request $request) {
         ], 500);
     }
 
+    try {
+        if ($phoneNumberGuard->isRegistered($phoneNumber, $supabaseUrl, $serviceKey)) {
+            return response()->json([
+                'message' => 'This mobile number is already registered or has a registration awaiting review. Sign in or contact the administrator.',
+            ], 409);
+        }
+    } catch (\Throwable $exception) {
+        Log::error('Unable to check for duplicate phone number during registration.', [
+            'role' => $role,
+            'exception' => get_class($exception),
+            'message' => $exception->getMessage(),
+        ]);
+
+        return response()->json([
+            'message' => 'Registration is temporarily unavailable while we check this mobile number. Please try again.',
+        ], 503);
+    }
+
     $metadata = [
         'full_name' => $request->input('full_name'),
         'username' => $username,
@@ -916,10 +936,6 @@ Route::post('/supabase/register-user', function (Request $request) {
             'student_name' => $request->input('student_name'),
             'student_class' => $request->input('student_class'),
         ]);
-    }
-
-    if (DB::table('pending_registrations')->where('phone_number', $phoneNumber)->exists()) {
-        return response()->json(['message' => 'A registration request for this mobile number is already awaiting review.'], 409);
     }
 
     $pendingUsernames = DB::table('pending_registrations')
@@ -968,7 +984,7 @@ Route::post('/supabase/register-user', function (Request $request) {
     ], 202);
 });
 
-Route::post('/supabase/phone-verification/request', function (Request $request, SmsService $smsService) {
+Route::post('/supabase/phone-verification/request', function (Request $request, SmsService $smsService, PhoneNumberRegistrationGuard $phoneNumberGuard) {
     $validated = $request->validate([
         'account_type' => 'required|in:parent,staff',
         'phone_number' => 'required|string|max:50',
@@ -977,6 +993,34 @@ Route::post('/supabase/phone-verification/request', function (Request $request, 
     $phoneNumber = PhoneNumber::normalize($validated['phone_number']);
     if (! preg_match('/^\+[1-9][0-9]{7,14}$/', $phoneNumber)) {
         return response()->json(['message' => 'Enter a valid mobile number.'], 422);
+    }
+
+    $supabaseUrl = env('VITE_SUPABASE_URL') ?: env('SUPABASE_URL');
+    $serviceKey = env('SUPABASE_SERVICE_KEY')
+        ?: env('SUPABASE_SERVICE_ROLE_KEY')
+        ?: getenv('SUPABASE_SERVICE_KEY')
+        ?: getenv('SUPABASE_SERVICE_ROLE_KEY');
+    if (! $supabaseUrl || ! $serviceKey) {
+        Log::error('Phone verification is unavailable because Supabase configuration is missing.');
+
+        return response()->json(['message' => 'Phone verification is temporarily unavailable. Please try again.'], 503);
+    }
+
+    try {
+        if ($phoneNumberGuard->isRegistered($phoneNumber, $supabaseUrl, $serviceKey)) {
+            return response()->json([
+                'message' => 'This mobile number is already registered or has a registration awaiting review. Sign in or contact the administrator.',
+            ], 409);
+        }
+    } catch (\Throwable $exception) {
+        Log::error('Unable to check for duplicate phone number before verification.', [
+            'exception' => get_class($exception),
+            'message' => $exception->getMessage(),
+        ]);
+
+        return response()->json([
+            'message' => 'Phone verification is temporarily unavailable while we check this number. Please try again.',
+        ], 503);
     }
 
     if (config('services.sms.driver') === 'log') {

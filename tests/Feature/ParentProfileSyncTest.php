@@ -132,7 +132,7 @@ class ParentProfileSyncTest extends TestCase
             'role' => 'parent',
             'status' => 'pending',
         ]);
-        Http::assertNothingSent();
+        Http::assertNotSent(fn ($request) => $request->method() !== 'GET');
     }
 
     public function test_parent_can_update_their_password_from_the_profile_page(): void
