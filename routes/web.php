@@ -121,10 +121,18 @@ Route::prefix('admin')->group(function () {
         Route::delete('/parents/{id}', [AdminController::class, 'deleteParent'])->name('admin.parents.delete');
 
         // Parent account support messages
-        Route::get('/support-messages', [AdminController::class, 'getSupportMessages'])->name('admin.support-messages');
-        Route::post('/support-messages/{supportMessage}/replies', [AdminController::class, 'replyToSupportMessage'])->name('admin.support-messages.reply');
-        Route::patch('/support-messages/{supportMessage}/status', [AdminController::class, 'updateSupportMessageStatus'])->name('admin.support-messages.status');
-        Route::delete('/support-messages/{supportMessage}', [AdminController::class, 'deleteSupportMessage'])->name('admin.support-messages.delete');
+        Route::get('/support-messages', [AdminController::class, 'getSupportMessages'])
+            ->middleware(\App\Http\Middleware\EnsureSupportMessageTablesExist::class)
+            ->name('admin.support-messages');
+        Route::post('/support-messages/{supportMessage}/replies', [AdminController::class, 'replyToSupportMessage'])
+            ->middleware(\App\Http\Middleware\EnsureSupportMessageTablesExist::class)
+            ->name('admin.support-messages.reply');
+        Route::patch('/support-messages/{supportMessage}/status', [AdminController::class, 'updateSupportMessageStatus'])
+            ->middleware(\App\Http\Middleware\EnsureSupportMessageTablesExist::class)
+            ->name('admin.support-messages.status');
+        Route::delete('/support-messages/{supportMessage}', [AdminController::class, 'deleteSupportMessage'])
+            ->middleware(\App\Http\Middleware\EnsureSupportMessageTablesExist::class)
+            ->name('admin.support-messages.delete');
 
         // Staff management
         Route::get('/staff', [AdminController::class, 'getStaff'])->name('admin.staff');
@@ -2056,7 +2064,10 @@ Route::get('/parent/contact-admin', function (Request $request) {
     $messages = \App\Models\SupportMessage::with('replies')->where('parent_user_id', $user['id'])->latest()->get();
 
     return view('parent.contact-admin', compact('messages'));
-})->name('parent.contact-admin')->middleware(EnsureUserHasRole::class.':parent');
+})->name('parent.contact-admin')->middleware([
+    \App\Http\Middleware\EnsureSupportMessageTablesExist::class,
+    EnsureUserHasRole::class.':parent',
+]);
 
 Route::post('/parent/contact-admin', function (Request $request) {
     $validated = $request->validate([
@@ -2074,7 +2085,10 @@ Route::post('/parent/contact-admin', function (Request $request) {
     ]);
 
     return redirect()->route('parent.contact-admin')->with('status', 'Your message has been sent to the admin.');
-})->name('parent.contact-admin.store')->middleware(EnsureUserHasRole::class.':parent');
+})->name('parent.contact-admin.store')->middleware([
+    \App\Http\Middleware\EnsureSupportMessageTablesExist::class,
+    EnsureUserHasRole::class.':parent',
+]);
 
 Route::post('/parent/contact-admin/{supportMessage}/replies', function (Request $request, string $supportMessage) {
     $validated = $request->validate([
@@ -2091,7 +2105,10 @@ Route::post('/parent/contact-admin/{supportMessage}/replies', function (Request 
     $message->update(['status' => 'open']);
 
     return redirect()->route('parent.contact-admin')->with('status', 'Your reply has been sent to the admin.');
-})->name('parent.contact-admin.reply')->middleware(EnsureUserHasRole::class.':parent');
+})->name('parent.contact-admin.reply')->middleware([
+    \App\Http\Middleware\EnsureSupportMessageTablesExist::class,
+    EnsureUserHasRole::class.':parent',
+]);
 
 Route::get('/parent/profile/edit', function (Request $request) use ($getParentData) {
     $data = $getParentData($request);
