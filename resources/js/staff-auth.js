@@ -105,17 +105,30 @@ async function handleLogin(event) {
     showMessage('Signing in...', false);
 
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    const loginResponse = await fetch('/supabase/username-login', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': csrfToken || '',
-        },
-        body: JSON.stringify({ username, password, account_type: 'staff' }),
-    });
+    let loginResponse;
+    try {
+        loginResponse = await fetch('/supabase/username-login', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrfToken || '',
+            },
+            body: JSON.stringify({ username, password, account_type: 'staff' }),
+        });
+    } catch (error) {
+        console.error('Staff sign-in request failed.', error);
+        showMessage('Unable to reach the sign-in service. Check your connection and try again.', true);
+        return;
+    }
+
     const loginPayload = await loginResponse.json().catch(() => ({}));
     if (!loginResponse.ok) {
-        showMessage(loginPayload.message || 'Unable to sign in.', true);
+        const message = loginResponse.status === 419
+            ? 'Your sign-in session expired. Refresh the page and try again.'
+            : loginPayload.message || `The sign-in service returned an error (${loginResponse.status}). Please try again.`;
+        showMessage(message, true);
         return;
     }
 
