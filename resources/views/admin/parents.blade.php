@@ -113,8 +113,8 @@
     </div>
 
     <!-- Parents Table -->
-    <div class="bg-white rounded-lg shadow overflow-hidden">
-        <table class="min-w-full divide-y divide-gray-200">
+    <div class="bg-white rounded-lg shadow overflow-x-auto">
+        <table class="min-w-[1200px] w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">PARENT / GUARDIAN ID</th>
@@ -123,13 +123,12 @@
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">RELATIONSHIP</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">MOBILE NUMBER</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">EMAIL</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">APPROVAL</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">ACTIONS</th>
+                    <th class="sticky right-0 z-10 bg-gray-50 px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider shadow-lg">APPROVAL / ACTIONS</th>
                 </tr>
             </thead>
             <tbody id="parentsTable" class="bg-white divide-y divide-gray-200">
                 <tr>
-                    <td colspan="8" class="px-6 py-4 text-center text-gray-500">Loading parents...</td>
+                    <td colspan="7" class="px-6 py-4 text-center text-gray-500">Loading parents...</td>
                 </tr>
             </tbody>
         </table>
@@ -249,7 +248,7 @@
 
             if (parents.length === 0) {
                 tbody.innerHTML =
-                    '<tr><td colspan="8" class="px-6 py-4 text-center text-gray-500">No parents found</td></tr>';
+                '<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500">No parents found</td></tr>';
                 return;
             }
 
@@ -277,19 +276,16 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${relationship}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${mobileNumber}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${email}</td>
-                        <td class="px-6 py-4 whitespace-nowrap">
+                        <td class="sticky right-0 z-[1] bg-white px-6 py-4 shadow-lg">
+                            <div class="flex min-w-[110px] flex-col items-start gap-2">
                             <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${approvalClass}">
                                 ${approvalLabel}
                             </span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                            ${parent.is_pending_registration
-                                ? ''
-                                : `<button type="button" onclick="editParent('${recordId}')" class="text-blue-600 hover:text-blue-800">Edit</button>`}
                             ${isApproved || isDeclined
-                                ? `<button onclick="deleteParent('${recordId}')" class="text-red-600 hover:text-red-900">Delete Account</button>`
-                                : `<button onclick="updateParentApproval('${recordId}', true)" class="text-emerald-600 hover:text-emerald-800">Approve</button>
-                                   <button onclick="updateParentApproval('${recordId}', false)" class="text-rose-600 hover:text-rose-800">Decline</button>`}
+                                ? `<button type="button" onclick="deleteParent('${recordId}')" class="rounded bg-red-100 px-3 py-1 text-xs font-semibold text-red-800 hover:bg-red-200">Delete</button>`
+                                : `<button type="button" onclick="updateParentApproval('${recordId}', true)" class="rounded bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-200">Approve</button>
+                                   <button type="button" onclick="updateParentApproval('${recordId}', false)" class="rounded bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-800 hover:bg-rose-200">Decline</button>`}
+                            </div>
                         </td>
                     </tr>
                 `;
@@ -298,7 +294,7 @@
             console.error('Error loading parents:', error);
             const row = document.createElement('tr');
             const cell = document.createElement('td');
-            cell.colSpan = 8;
+            cell.colSpan = 7;
             cell.className = 'px-6 py-4 text-center text-red-500';
             cell.textContent = error instanceof Error ? error.message : 'Error loading parents. Please try again.';
             row.appendChild(cell);
