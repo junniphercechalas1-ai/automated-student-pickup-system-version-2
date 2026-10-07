@@ -6,6 +6,7 @@ use App\Models\Admin;
 use App\Models\SupportMessage;
 use App\Services\SmsService;
 use App\Support\NameParts;
+use App\Support\PendingRegistrationSchema;
 use App\Support\PhoneNumber;
 use App\Support\UsernameIdentity;
 use Carbon\Carbon;
@@ -59,6 +60,8 @@ class AdminController extends Controller
 
     private function pendingRegistrationRows(string $role): array
     {
+        PendingRegistrationSchema::ensure();
+
         return DB::table('pending_registrations')
             ->where('role', $role)
             ->where('status', 'pending')
