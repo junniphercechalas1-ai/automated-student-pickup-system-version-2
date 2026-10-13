@@ -43,7 +43,6 @@
                             <label class="flex min-h-11 items-center gap-2 text-slate-600"><input name="remember" type="checkbox" class="h-5 w-5 rounded border-slate-300 text-blue-600">Remember me</label>
                             <button id="showForgotPassword" type="button" class="min-h-11 font-semibold text-blue-600 hover:text-blue-700">Forgot password?</button>
                         </div>
-                        <button id="showUsernameSetup" type="button" class="min-h-11 text-left text-sm font-semibold text-blue-600 hover:text-blue-700">Already registered? Set up your username</button>
                         <button type="submit" class="min-h-12 w-full rounded-lg bg-blue-600 px-6 py-3 text-base font-semibold text-white transition hover:bg-blue-700 sm:text-sm">Login</button>
                     </form>
                     <div class="flex min-h-11 items-center text-sm text-slate-500">
@@ -53,29 +52,6 @@
                         <p class="text-xs text-slate-600 mb-3">Are you a parent/guardian?</p>
                         <a href="/login" class="inline-flex min-h-11 items-center text-sm font-semibold text-blue-600 hover:text-blue-700">Go to parent login</a>
                     </div>
-                </section>
-
-                <section id="usernameSetupSection" class="hidden space-y-4">
-                    <p class="rounded-2xl border border-blue-200 bg-blue-50 p-3 text-sm leading-6 text-blue-700">For accounts registered before username sign-in, verify your registered number by SMS to choose a username. Your existing password stays the same.</p>
-                    <form id="usernameSetupForm" class="space-y-4">
-                        <div class="space-y-2 text-sm">
-                            <label for="setup_phone_number" class="block font-medium text-slate-700">Registered Mobile Number</label>
-                            <input id="setup_phone_number" name="phone_number" type="tel" inputmode="tel" autocomplete="tel" required placeholder="Enter your registered number" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 sm:text-sm" />
-                            <button type="button" data-phone-otp-send class="min-h-11 text-sm font-semibold text-blue-600 hover:text-blue-700">Send verification code</button>
-                            <div data-phone-otp-section class="hidden space-y-2">
-                                <label for="setup_phone_otp" class="block font-medium text-slate-700">SMS verification code</label>
-                                <input id="setup_phone_otp" data-phone-otp-input type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base tracking-[0.2em] outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 sm:text-sm" />
-                                <button type="button" data-phone-otp-verify class="min-h-11 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Verify number</button>
-                            </div>
-                            <p data-phone-otp-status class="text-xs text-slate-500" role="status"></p>
-                        </div>
-                        <div class="space-y-2 text-sm">
-                            <label for="setup_username" class="block font-medium text-slate-700">Choose a Username</label>
-                            <input id="setup_username" name="username" type="text" autocomplete="username" minlength="3" maxlength="30" pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,29}" required placeholder="Choose a username" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 sm:text-sm" />
-                        </div>
-                        <button type="submit" class="min-h-12 w-full rounded-lg bg-blue-600 px-6 py-3 text-base font-semibold text-white hover:bg-blue-700 sm:text-sm">Set Username</button>
-                    </form>
-                    <button id="backFromUsernameSetup" type="button" class="min-h-11 w-full text-sm font-semibold text-blue-600">Back to login</button>
                 </section>
 
                 <section id="resetSection" class="hidden space-y-3">
