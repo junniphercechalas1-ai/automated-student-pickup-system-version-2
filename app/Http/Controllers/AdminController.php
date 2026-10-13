@@ -109,7 +109,7 @@ class AdminController extends Controller
             : "Your Orion Christian Academy {$role} registration was declined. Please contact the school administration if you need assistance.";
 
         try {
-            $smsService->send($phoneNumber, $message);
+            $smsService->sendNotification($phoneNumber, $message, 'sms_account_decision');
 
             return true;
         } catch (\Throwable $exception) {
@@ -131,7 +131,9 @@ class AdminController extends Controller
         return response()->json([
             ...$extra,
             'message' => $baseMessage.($notificationSent
-                ? ' SMS notification sent.'
+                ? (config('services.sms.driver') === 'supabase_queue'
+                    ? ' SMS notification queued for delivery.'
+                    : ' SMS notification sent.')
                 : ' SMS notification could not be sent; check SMS configuration and delivery.'),
             'notification_sent' => $notificationSent,
         ]);
@@ -535,49 +537,50 @@ class AdminController extends Controller
 
     public function login(Request $request)
     {
-        $request->validate([
-            'phone' => 'required|string|max:50',
+        $validated = $request->validate([
+            'username' => 'required|string|max:30',
             'password' => 'required|string',
         ]);
 
-        $phoneNumber = PhoneNumber::normalize($request->input('phone'));
-        if (! preg_match('/^\+[1-9][0-9]{7,14}$/', $phoneNumber)) {
-            return back()->withErrors(['phone' => 'Enter a valid mobile number.'])->withInput();
+        $username = UsernameIdentity::normalize($validated['username']);
+        if (! UsernameIdentity::isValid($username)) {
+            return back()->withErrors(['username' => 'Enter a valid username (3–30 letters, numbers, dots, underscores, or hyphens).'])->withInput();
         }
 
-        $admin = $this->findSupabaseAdminByPhone($phoneNumber);
+        $admin = $this->findSupabaseAdminByUsername($username);
 
         if (! $admin || ! $admin->is_active) {
-            Log::warning('Admin login rejected: account missing or inactive.', [
-                'phone_hash' => hash('sha256', $phoneNumber),
+            Log::warning('Admin login rejected: username missing or account inactive.', [
+                'username_hash' => hash('sha256', $username),
                 'account_found' => $admin !== null,
             ]);
 
-            return back()->withErrors(['phone' => 'Invalid mobile number or password.'])->withInput();
+            return back()->withErrors(['username' => 'Invalid username or password.'])->withInput();
         }
 
-        $passwordIsValid = false;
+        if (empty($admin->auth_user_id)) {
+            Log::error('Admin login rejected because the profile is not linked to a Supabase Auth user.', [
+                'admin_id' => $admin->id,
+            ]);
 
-        if (! empty($admin->auth_user_id)) {
-            $passwordIsValid = $this->authenticateSupabaseAdmin($phoneNumber, $request->password, (string) $admin->auth_user_id, 'phone');
-
-            if (! $passwordIsValid && filter_var($admin->email, FILTER_VALIDATE_EMAIL)) {
-                $passwordIsValid = $this->authenticateSupabaseAdmin((string) $admin->email, $request->password, (string) $admin->auth_user_id, 'email');
-            }
+            return back()->withErrors(['username' => 'This administrator account is not linked to Supabase Auth. Contact the system administrator.'])->withInput();
         }
 
-        if (! $passwordIsValid) {
-            $passwordIsValid = $admin->verifyPassword($request->password);
+        $authEmail = $this->getSupabaseAdminAuthEmail((string) $admin->auth_user_id);
+        if (! $authEmail) {
+            return back()->withErrors(['username' => 'Unable to verify the linked Supabase Auth account. Contact the system administrator.'])->withInput();
         }
+
+        $passwordIsValid = $this->authenticateSupabaseAdmin($authEmail, $validated['password'], (string) $admin->auth_user_id, 'email');
 
         if (! $passwordIsValid) {
             Log::warning('Admin login rejected: password verification failed.', [
-                'phone_hash' => hash('sha256', $phoneNumber),
+                'username_hash' => hash('sha256', $username),
                 'auth_user_id' => $admin->auth_user_id,
                 'supabase_auth_checked' => ! empty($admin->auth_user_id),
             ]);
 
-            return back()->withErrors(['phone' => 'Invalid mobile number or password.'])->withInput();
+            return back()->withErrors(['username' => 'Invalid username or password.'])->withInput();
         }
 
         Session::put('admin_id', $admin->id);
@@ -688,27 +691,26 @@ class AdminController extends Controller
             return response()->json(['message' => 'Admin password reset is not configured.'], 503);
         }
 
-        $usesSupabaseAuth = ! empty($admin->auth_user_id);
-        if ($usesSupabaseAuth) {
-            $authUpdate = Http::withHeaders($this->getHeaders())
-                ->put("{$supabaseUrl}/auth/v1/admin/users/".urlencode((string) $admin->auth_user_id), [
-                    'password' => $validated['password'],
-                ]);
-            if ($authUpdate->failed()) {
-                Log::warning('Unable to update admin Auth password after SMS verification.', [
-                    'admin_id' => $admin->id,
-                    'status' => $authUpdate->status(),
-                ]);
+        if (empty($admin->auth_user_id)) {
+            Log::error('Admin password reset rejected because the profile is not linked to a Supabase Auth user.', [
+                'admin_id' => $admin->id,
+            ]);
 
-                return response()->json(['message' => 'Unable to update the password. Please try again.'], 503);
-            }
+            return response()->json(['message' => 'This administrator account is not linked to Supabase Auth. Contact the system administrator.'], 503);
         }
 
-        if (! $usesSupabaseAuth) {
-            $admin->password_hash = $validated['password'];
-            if (! $this->updateSupabaseAdmin($admin->id, ['password_hash' => $admin->password_hash])) {
-                return response()->json(['message' => 'Unable to save the new password. Please try again or contact an administrator.'], 500);
-            }
+        $authUpdate = Http::withHeaders($this->getHeaders())
+            ->timeout(10)
+            ->put("{$supabaseUrl}/auth/v1/admin/users/".urlencode((string) $admin->auth_user_id), [
+                'password' => $validated['password'],
+            ]);
+        if ($authUpdate->failed()) {
+            Log::warning('Unable to update admin Auth password after SMS verification.', [
+                'admin_id' => $admin->id,
+                'status' => $authUpdate->status(),
+            ]);
+
+            return response()->json(['message' => 'Unable to update the password. Please try again.'], 503);
         }
 
         Cache::forget($cacheKey);
@@ -2147,12 +2149,47 @@ class AdminController extends Controller
             'new_password' => 'required|string|min:8|confirmed',
         ]);
 
-        if (! $admin->verifyPassword($request->current_password)) {
+        if (empty($admin->auth_user_id)) {
+            Log::error('Admin password change rejected because the profile is not linked to a Supabase Auth user.', [
+                'admin_id' => $admin->id,
+            ]);
+
+            return back()->withErrors(['password' => 'This administrator account is not linked to Supabase Auth. Contact the system administrator.']);
+        }
+
+        $authEmail = $this->getSupabaseAdminAuthEmail((string) $admin->auth_user_id);
+        if (! $authEmail) {
+            return back()->withErrors(['password' => 'Unable to verify the linked Supabase Auth account. Contact the system administrator.']);
+        }
+
+        $passwordIsValid = $this->authenticateSupabaseAdmin(
+            $authEmail,
+            $request->current_password,
+            (string) $admin->auth_user_id,
+            'email'
+        );
+        if (! $passwordIsValid) {
             return back()->withErrors(['current_password' => 'Current password is incorrect.']);
         }
 
-        $admin->password_hash = $request->new_password;
-        $this->updateSupabaseAdmin($admin->id, ['password_hash' => $admin->password_hash]);
+        $supabaseUrl = $this->supabaseUrl();
+        if (! $supabaseUrl || ! $this->serviceKey()) {
+            return back()->withErrors(['password' => 'Supabase Auth is not configured. Please contact the system administrator.']);
+        }
+
+        $authUpdate = Http::withHeaders($this->getHeaders())
+            ->timeout(10)
+            ->put("{$supabaseUrl}/auth/v1/admin/users/".urlencode((string) $admin->auth_user_id), [
+                'password' => $request->new_password,
+            ]);
+        if ($authUpdate->failed()) {
+            Log::warning('Unable to update admin Auth password from the profile page.', [
+                'admin_id' => $admin->id,
+                'status' => $authUpdate->status(),
+            ]);
+
+            return back()->withErrors(['password' => 'Unable to save the new password. Please try again or contact an administrator.']);
+        }
 
         return back()->with('status', 'Password updated successfully.');
     }
@@ -2188,6 +2225,41 @@ class AdminController extends Controller
         return $actualUserId !== null && $actualUserId === $expectedUserId;
     }
 
+    private function getSupabaseAdminAuthEmail(string $authUserId): ?string
+    {
+        $supabaseUrl = $this->supabaseUrl();
+        if (! $supabaseUrl || ! $this->serviceKey()) {
+            Log::error('Unable to resolve admin Auth email because Supabase is not configured.');
+
+            return null;
+        }
+
+        $response = Http::withHeaders($this->getHeaders())
+            ->timeout(10)
+            ->get("{$supabaseUrl}/auth/v1/admin/users/".urlencode($authUserId));
+        if ($response->failed()) {
+            Log::warning('Unable to fetch linked admin Auth user.', [
+                'auth_user_id' => $authUserId,
+                'status' => $response->status(),
+            ]);
+
+            return null;
+        }
+
+        $authUser = $response->json();
+        if (! is_array($authUser)
+            || (string) ($authUser['id'] ?? '') !== $authUserId
+            || ! filter_var($authUser['email'] ?? null, FILTER_VALIDATE_EMAIL)) {
+            Log::warning('Linked admin Auth user has no valid email address.', [
+                'auth_user_id' => $authUserId,
+            ]);
+
+            return null;
+        }
+
+        return (string) $authUser['email'];
+    }
+
     private function findSupabaseAdmin(string $id): ?Admin
     {
         return $this->findSupabaseAdminWithQuery(['id' => 'eq.'.$id]);
@@ -2210,6 +2282,13 @@ class AdminController extends Controller
         }
 
         return null;
+    }
+
+    private function findSupabaseAdminByUsername(string $username): ?Admin
+    {
+        return $this->findSupabaseAdminWithQuery([
+            'username' => 'eq.'.$username,
+        ]);
     }
 
     private function findSupabaseAdminWithQuery(array $query): ?Admin

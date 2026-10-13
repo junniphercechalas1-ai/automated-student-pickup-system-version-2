@@ -75,7 +75,16 @@ Parent support messages are stored in the Laravel database; parent and student p
 
 Render cannot access a GSM modem plugged into a personal computer. To send bulk notifications with that modem, Render adds each SMS to the Supabase `sms_queue` table, and a worker running on the computer connected to the modem sends it.
 
-Configure the Render service with `SMS_PROVIDER=supabase_queue`, `SUPABASE_URL`, and `SUPABASE_SERVICE_KEY`. The queue table must allow the server-side service-role key to insert and update rows; its `id` must be generated, `status` must accept `pending`, `processing`, `sent`, and `failed`, and `provider_id` and `error_message` must be nullable. `expires_at`, `claimed_at`, and `completed_at` must allow the initial insert (nullable or defaulted). Keep the service-role key only in server-side environment settings or the laptop's local `.env`; do not use a `VITE_` variable or commit the key.
+Configure the Render service with `SMS_PROVIDER=supabase_queue`, `SUPABASE_URL`, and `SUPABASE_SERVICE_KEY`. The service-role key must be able to insert and update rows in `notifications` and `sms_queue`; the queue table's `id` must be generated, `status` must accept `pending`, `processing`, `sent`, and `failed`, and `provider_id` and `error_message` must be nullable. `expires_at`, `claimed_at`, and `completed_at` must allow the initial insert (nullable or defaulted). Keep the service-role key only in server-side environment settings or the laptop's local `.env`; do not use a `VITE_` variable or commit the key.
+
+To relate account-decision notifications to their queued SMS, first verify
+that `notifications.id` is a UUID, then run
+[`database/supabase/link_sms_queue_to_notifications.sql`](./database/supabase/link_sms_queue_to_notifications.sql)
+in the Supabase SQL Editor. It adds a nullable foreign key from
+`sms_queue.notification_id` to `notifications.id`; existing queue rows remain
+unlinked. The Laravel app creates the notification before enqueuing its SMS,
+and the local worker records `sent_at` after delivery. Password-reset SMS
+messages are intentionally not copied into `notifications`.
 
 On the Windows laptop connected to the GSM modem:
 

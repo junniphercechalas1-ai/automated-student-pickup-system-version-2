@@ -52,14 +52,14 @@
                         <div id="loginSection" class="space-y-3">
                             <form id="loginForm" action="{{ route('admin.login.post') }}" method="POST" class="space-y-3">
                                 @csrf
-                                <!-- Mobile Number Field -->
+                                <!-- Username Field -->
                                 <div class="space-y-2">
-                                    <label for="phone" class="block text-sm font-medium text-slate-700">Mobile Number</label>
+                                    <label for="username" class="block text-sm font-medium text-slate-700">Username</label>
                                     <div class="relative">
                                         <svg class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 2h10a2 2 0 012 2v16a2 2 0 01-2 2H7a2 2 0 01-2-2V4a2 2 0 012-2zm5 16h.01"/>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2m8-10a4 4 0 100-8 4 4 0 000 8z"/>
                                         </svg>
-                                        <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" required value="{{ old('phone') }}" placeholder="Enter your mobile number" class="w-full pl-12 pr-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100" />
+                                        <input id="username" name="username" type="text" autocomplete="username" minlength="3" maxlength="30" pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,29}" required value="{{ old('username') }}" placeholder="Enter your username" class="w-full pl-12 pr-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100" />
                                     </div>
                                 </div>
 

@@ -68,6 +68,37 @@ class SmsServiceTest extends TestCase
         });
     }
 
+    public function test_supabase_queue_links_account_notification_to_queued_sms(): void
+    {
+        config([
+            'services.sms.driver' => 'supabase_queue',
+            'services.sms.queue.url' => 'https://example.supabase.co',
+            'services.sms.queue.service_key' => 'test-service-key',
+        ]);
+        Http::fake([
+            'https://example.supabase.co/rest/v1/notifications' => Http::response([['id' => 'notification-456']], 201),
+            'https://example.supabase.co/rest/v1/sms_queue' => Http::response([['id' => 'queue-123']], 201),
+        ]);
+
+        $result = app(SmsService::class)->sendNotification('+639171234567', 'Account approved', 'sms_account_decision');
+
+        $this->assertSame('queue-123', $result['provider_id']);
+        $this->assertSame('notification-456', $result['notification_id']);
+        Http::assertSent(function ($request): bool {
+            return $request->url() === 'https://example.supabase.co/rest/v1/notifications'
+                && $request->method() === 'POST'
+                && $request['notification_type'] === 'sms_account_decision'
+                && $request['recipient_phone'] === '+639171234567'
+                && $request['message'] === 'Account approved';
+        });
+        Http::assertSent(function ($request): bool {
+            return $request->url() === 'https://example.supabase.co/rest/v1/sms_queue'
+                && $request->method() === 'POST'
+                && $request['notification_id'] === 'notification-456'
+                && $request['recipient_phone'] === '+639171234567';
+        });
+    }
+
     public function test_supabase_queue_atomically_claims_and_completes_a_message(): void
     {
         config([
@@ -107,6 +138,25 @@ class SmsServiceTest extends TestCase
                 && str_contains($request->url(), 'status=eq.processing')
                 && $request['status'] === 'sent'
                 && isset($request['completed_at']);
+        });
+    }
+
+    public function test_supabase_queue_marks_the_linked_notification_as_sent(): void
+    {
+        config([
+            'services.sms.queue.url' => 'https://example.supabase.co',
+            'services.sms.queue.service_key' => 'test-service-key',
+        ]);
+        Http::fake([
+            'https://example.supabase.co/rest/v1/notifications*' => Http::response([['id' => 'notification-456']], 200),
+        ]);
+
+        app(SupabaseSmsQueue::class)->markNotificationSent('notification-456');
+
+        Http::assertSent(function ($request): bool {
+            return $request->method() === 'PATCH'
+                && str_contains($request->url(), 'id=eq.notification-456')
+                && isset($request['sent_at']);
         });
     }
 }

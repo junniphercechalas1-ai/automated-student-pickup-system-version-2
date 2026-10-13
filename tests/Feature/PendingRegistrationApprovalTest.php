@@ -298,7 +298,8 @@ class PendingRegistrationApprovalTest extends TestCase
                 'id' => 'admin-auth-id',
                 'user_metadata' => ['role' => 'admin'],
             ],
-        ])->getJson('/admin/parents?format=json')
+        ])->withSession(['admin_id' => 'admin-1'])
+            ->getJson('/admin/parents?format=json')
             ->assertOk()
             ->assertJsonPath('parents.0.email', 'echo@accounts.orion.invalid');
 
@@ -436,10 +437,10 @@ class PendingRegistrationApprovalTest extends TestCase
     {
         config(['services.sms.driver' => 'gsm']);
         $smsService = \Mockery::mock(SmsService::class);
-        $smsService->shouldReceive('send')
+        $smsService->shouldReceive('sendNotification')
             ->once()
             ->andThrow(new \RuntimeException('GSM modem unavailable.'));
-        $this->app->instance(SmsService::class, $smsService);
+        $this->instance(SmsService::class, $smsService);
         $this->createPendingRegistrationTable();
         $registrationId = $this->createPendingRegistration('staff', '+639171234576', [
             'full_name' => 'Sam Staff',
@@ -490,12 +491,12 @@ class PendingRegistrationApprovalTest extends TestCase
     {
         config(['services.sms.driver' => 'gsm']);
         $smsService = \Mockery::mock(SmsService::class);
-        $smsService->shouldReceive('send')
+        $smsService->shouldReceive('sendNotification')
             ->once()
             ->with($phone, \Mockery::on(fn ($message) => str_contains($message, 'account')
-                || str_contains($message, 'registration')))
+                || str_contains($message, 'registration')), 'sms_account_decision')
             ->andReturn(['driver' => 'gsm', 'provider_id' => null]);
-        $this->app->instance(SmsService::class, $smsService);
+        $this->instance(SmsService::class, $smsService);
     }
 
     private function createPendingRegistrationTable(): void

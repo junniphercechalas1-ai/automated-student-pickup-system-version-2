@@ -100,10 +100,14 @@ class EnsureUserHasRole
                     $parentRows = $parentResponse->json();
                     $parentRow = collect($parentRows)->first();
 
-                    if (is_array($parentRow)
-                        && ($parentRow['is_approved'] ?? false) === true
-                        && ($parentRow['is_active'] ?? false) !== false) {
-                        $isApprovedParentInSupabase = true;
+                    if (is_array($parentRow)) {
+                        $parentIsApproved = array_key_exists('is_approved', $parentRow)
+                            ? (bool) ($parentRow['is_approved'] ?? false)
+                            : true;
+
+                        if ($parentIsApproved && ($parentRow['is_active'] ?? true) !== false) {
+                            $isApprovedParentInSupabase = true;
+                        }
                     }
                 }
             }

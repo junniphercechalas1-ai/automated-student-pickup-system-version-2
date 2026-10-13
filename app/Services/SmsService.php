@@ -64,6 +64,17 @@ class SmsService
         ];
     }
 
+    public function sendNotification(string $to, string $message, string $notificationType): array
+    {
+        $to = PhoneNumber::normalize($to);
+
+        if (config('services.sms.driver', 'log') === 'supabase_queue') {
+            return app(SupabaseSmsQueue::class)->enqueueNotification($to, $message, $notificationType);
+        }
+
+        return $this->send($to, $message);
+    }
+
     public function sendUsingGsm(string $to, string $message): array
     {
         return $this->sendWithGsmModule(PhoneNumber::normalize($to), $message);

@@ -2,10 +2,41 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class ParentQRCodePageTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        putenv('VITE_SUPABASE_URL=https://example.supabase.co');
+        putenv('SUPABASE_SERVICE_KEY=test-service-key');
+        $_ENV['VITE_SUPABASE_URL'] = 'https://example.supabase.co';
+        $_ENV['SUPABASE_SERVICE_KEY'] = 'test-service-key';
+        $_SERVER['VITE_SUPABASE_URL'] = 'https://example.supabase.co';
+        $_SERVER['SUPABASE_SERVICE_KEY'] = 'test-service-key';
+
+        Http::fake(function ($request) {
+            if (str_contains($request->url(), '/rest/v1/staff')) {
+                return Http::response([], 200);
+            }
+
+            if (str_contains($request->url(), '/rest/v1/parents')) {
+                return Http::response([[
+                    'id' => 42,
+                    'auth_user_id' => 'parent-user-id',
+                    'email' => 'parent@example.com',
+                    'is_approved' => true,
+                    'is_active' => true,
+                ]], 200);
+            }
+
+            return Http::response([], 200);
+        });
+    }
+
     public function test_parent_qr_code_page_displays_blue_hero(): void
     {
         $response = $this->withSession([
@@ -120,7 +151,7 @@ class ParentQRCodePageTest extends TestCase
         // Verify security notice
         $response->assertSee('class="parent-qr-security-notice"', false);
         $response->assertSee('Security Notice');
-        $response->assertSee('Sharing, screenshot, or downloading this QR code is not allowed.');
+        $response->assertSee('This QR code is temporary and expires after 10 minutes. Do not share or screenshot it.');
     }
 
     public function test_parent_qr_code_page_displays_important_info(): void
@@ -148,7 +179,7 @@ class ParentQRCodePageTest extends TestCase
         $response->assertSee('Important');
         $response->assertSee('Do not share your QR code with other people.');
         $response->assertSee('Use this code only for your child.');
-        $response->assertSee('If you have trouble displaying this code, ask the guard or staff for assistance.');
+        $response->assertSee('Ask the guard or staff for assistance if the code cannot be displayed.');
     }
 
     public function test_parent_qr_code_page_maintains_navigation(): void

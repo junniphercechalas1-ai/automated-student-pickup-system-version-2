@@ -9,16 +9,21 @@ use RuntimeException;
 
 class SupabaseSmsQueue
 {
-    public function enqueue(string $recipientPhone, string $message): array
+    public function enqueue(string $recipientPhone, string $message, ?string $notificationId = null): array
     {
+        $payload = [
+            'recipient_phone' => $recipientPhone,
+            'message' => $message,
+            'status' => 'pending',
+            'created_at' => now()->toIso8601String(),
+        ];
+        if ($notificationId !== null) {
+            $payload['notification_id'] = $notificationId;
+        }
+
         $response = $this->request()
             ->withHeaders(['Prefer' => 'return=representation'])
-            ->post($this->tableUrl(), [
-                'recipient_phone' => $recipientPhone,
-                'message' => $message,
-                'status' => 'pending',
-                'created_at' => now()->toIso8601String(),
-            ]);
+            ->post($this->tableUrl(), $payload);
 
         $this->throwOnFailure($response, 'Unable to enqueue the SMS.');
         $rows = $response->json();
@@ -32,6 +37,31 @@ class SupabaseSmsQueue
         ];
     }
 
+    public function enqueueNotification(string $recipientPhone, string $message, string $notificationType): array
+    {
+        $response = $this->request()
+            ->withHeaders(['Prefer' => 'return=representation'])
+            ->post($this->notificationsUrl(), [
+                'notification_type' => $notificationType,
+                'recipient_phone' => $recipientPhone,
+                'message' => $message,
+            ]);
+
+        $this->throwOnFailure($response, 'Unable to record the SMS notification.');
+        $rows = $response->json();
+        if (! is_array($rows) || ! isset($rows[0]['id'])) {
+            throw new RuntimeException('Supabase did not return the notification ID.');
+        }
+
+        $notificationId = (string) $rows[0]['id'];
+        $queued = $this->enqueue($recipientPhone, $message, $notificationId);
+
+        return [
+            ...$queued,
+            'notification_id' => $notificationId,
+        ];
+    }
+
     /**
      * Atomically claims the oldest pending row.
      *
@@ -40,7 +70,7 @@ class SupabaseSmsQueue
     public function claimNext(): ?array
     {
         $pending = $this->request()->get($this->tableUrl(), [
-            'select' => 'id,recipient_phone,message,expires_at',
+            'select' => 'id,recipient_phone,message,expires_at,notification_id',
             'status' => 'eq.pending',
             'order' => 'created_at.asc',
             'limit' => 20,
@@ -102,6 +132,27 @@ class SupabaseSmsQueue
         }
     }
 
+    public function markNotificationSent(?string $notificationId): void
+    {
+        if ($notificationId === null) {
+            return;
+        }
+
+        $response = $this->request()
+            ->withHeaders(['Prefer' => 'return=representation'])
+            ->patch($this->notificationsUrl().'?'.http_build_query([
+                'id' => 'eq.'.$notificationId,
+            ], '', '&', PHP_QUERY_RFC3986), [
+                'sent_at' => now()->toIso8601String(),
+            ]);
+
+        $this->throwOnFailure($response, 'Unable to mark the notification as sent.');
+        $rows = $response->json();
+        if (! is_array($rows) || $rows === []) {
+            throw new RuntimeException('The notification record could not be updated.');
+        }
+    }
+
     private function request(): PendingRequest
     {
         $url = (string) config('services.sms.queue.url');
@@ -122,6 +173,11 @@ class SupabaseSmsQueue
     private function tableUrl(): string
     {
         return rtrim((string) config('services.sms.queue.url'), '/').'/rest/v1/sms_queue';
+    }
+
+    private function notificationsUrl(): string
+    {
+        return rtrim((string) config('services.sms.queue.url'), '/').'/rest/v1/notifications';
     }
 
     private function throwOnFailure(Response $response, string $context): void

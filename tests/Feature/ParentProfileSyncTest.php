@@ -100,7 +100,13 @@ class ParentProfileSyncTest extends TestCase
             });
         $this->app->instance(SmsService::class, $smsService);
 
-        Http::fake();
+        Http::fake(function ($request) {
+            if (str_contains($request->url(), '/auth/v1/admin/users')) {
+                return Http::response(['users' => []], 200);
+            }
+
+            return Http::response([], 200);
+        });
 
         $flowId = $this->postJson('/supabase/phone-verification/request', [
             'account_type' => 'parent',
@@ -114,6 +120,7 @@ class ParentProfileSyncTest extends TestCase
 
         $response = $this->postJson('/supabase/register-user', [
             'full_name' => 'Jane Doe',
+            'username' => 'janedoe',
             'password' => 'secret123',
             'phone_number' => '09170001111',
             'role' => 'parent',

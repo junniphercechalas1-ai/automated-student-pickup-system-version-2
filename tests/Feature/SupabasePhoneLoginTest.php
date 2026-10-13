@@ -118,6 +118,10 @@ class SupabasePhoneLoginTest extends TestCase
 
                 return Http::response(['sid' => 'SM555'], 201);
             }
+            if (str_contains($request->url(), '/auth/v1/admin/users')) {
+                return Http::response(['users' => []], 200);
+            }
+
             return Http::response([], 200);
         });
 
@@ -159,7 +163,8 @@ class SupabasePhoneLoginTest extends TestCase
             'role' => 'staff',
             'status' => 'pending',
         ]);
-        Http::assertNotSent(fn ($request) => str_contains($request->url(), '/auth/v1/admin/users'));
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), '/auth/v1/admin/users')
+            && in_array($request->method(), ['POST', 'PUT'], true));
         $this->assertTrue(Cache::missing('signup-phone-verification:'.$flowId));
     }
 

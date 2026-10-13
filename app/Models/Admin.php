@@ -19,12 +19,13 @@ use Illuminate\Support\Facades\Hash;
  */
 class Admin extends Model
 {
-    protected $table = 'admins';
+    protected $table = 'admin';
     public $timestamps = false;
     public $incrementing = false;
     protected $keyType = 'string';
 
     protected $fillable = [
+        'username',
         'email',
         'phone_number',
         'auth_user_id',

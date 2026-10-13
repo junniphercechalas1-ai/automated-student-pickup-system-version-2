@@ -62,9 +62,12 @@ alter table public.pickups
   foreign key (parent_id) references public.parents(id) on delete set null;
 
 alter table public.parents add column if not exists email text;
+alter table public.parents add column if not exists is_approved boolean default false;
 create unique index if not exists idx_parents_email_unique
   on public.parents (lower(email))
   where email is not null;
+create index if not exists idx_parents_is_approved
+  on public.parents (is_approved);
 
 -- 4. staff table for staff access / approvals
 create table if not exists public.staff (
@@ -98,9 +101,11 @@ for all
 using (true)
 with check (true);
 
--- 7. admins table for system administrators
-create table if not exists public.admins (
+-- 7. admin table for system administrators
+create table if not exists public.admin (
   id uuid primary key default gen_random_uuid(),
+  auth_user_id uuid references auth.users(id) on delete cascade,
+  username text unique,
   first_name text,
   middle_name text,
   last_name text,
@@ -110,13 +115,22 @@ create table if not exists public.admins (
   is_active boolean default true
 );
 
-create index if not exists idx_admins_email
-  on public.admins (email);
-create unique index if not exists idx_admins_phone_number_unique
-  on public.admins (phone_number)
+alter table public.admin
+  add column if not exists auth_user_id uuid references auth.users(id) on delete cascade,
+  add column if not exists username text;
+create unique index if not exists idx_admin_auth_user_id
+  on public.admin (auth_user_id)
+  where auth_user_id is not null;
+create unique index if not exists idx_admin_username
+  on public.admin (lower(username))
+  where username is not null;
+create index if not exists idx_admin_email
+  on public.admin (email);
+create unique index if not exists idx_admin_phone_number_unique
+  on public.admin (phone_number)
   where phone_number is not null;
 
-alter table public.admins add column if not exists phone_number text;
+alter table public.admin add column if not exists phone_number text;
 
 -- 8. Add role and status fields to existing tables for better management
 alter table public.parents add column if not exists is_active boolean default true;
@@ -126,16 +140,16 @@ alter table public.staff add column if not exists role text default 'staff'; -- 
 alter table public.staff add column if not exists is_active boolean default true;
 alter table public.staff alter column is_approved set default false;
 
--- RLS for admins table
-alter table public.admins enable row level security;
+-- RLS for admin table
+alter table public.admin enable row level security;
 
-create policy "admins can manage own record"
-on public.admins
+create policy "admin can manage own record"
+on public.admin
 for select
 using (auth.uid() = id);
 
-create policy "service role can manage admins"
-on public.admins
+create policy "service role can manage admin"
+on public.admin
 for all
 using (true)
 with check (true);

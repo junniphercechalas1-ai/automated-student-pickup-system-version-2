@@ -36,9 +36,9 @@ Your admin system provides a complete dashboard for managing students, parents, 
 
 ### Database Schema
 
-A new `admins` table has been added to your Supabase database:
+A new `admin` table has been added to your Supabase database:
 ```sql
-CREATE TABLE public.admins (
+CREATE TABLE public.admin (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   username TEXT NOT NULL UNIQUE,
   email TEXT NOT NULL UNIQUE,
@@ -64,7 +64,7 @@ Enhanced existing tables with role and status fields:
 Run this SQL in your Supabase dashboard:
 
 ```sql
-INSERT INTO public.admins (username, email, password_hash, full_name, role, is_active)
+INSERT INTO public.admin (username, email, password_hash, full_name, role, is_active)
 VALUES (
   'admin',
   'admin@orionacademy.edu',
@@ -106,7 +106,7 @@ Admin::create([
 
 ### Phone-only admin sign-in and password recovery
 
-The admin portal signs in with a mobile number and password. Password recovery sends a one-time code using the configured SMS module.
+The admin portal signs in with a username and password. Existing usernames are initialized from the linked Auth email's local part (the portion before `@`); the username resolves to the linked admin profile's email, which Supabase Auth uses for password verification. Phone sign-in does not need to be enabled. Password recovery still sends a one-time code to the registered mobile number using the configured SMS module.
 
 The current Laravel admin endpoints read the singular `public.admin` table. Run this once in Supabase SQL Editor to add the login phone column and prevent duplicate numbers:
 

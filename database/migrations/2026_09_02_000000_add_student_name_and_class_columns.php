@@ -9,72 +9,110 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('students', function (Blueprint $table) {
-            $table->string('first_name')->nullable();
-            $table->string('middle_name')->nullable();
-            $table->string('last_name')->nullable();
-            $table->string('grade_level')->nullable();
-            $table->string('section')->nullable();
-        });
+        foreach (['first_name', 'middle_name', 'last_name', 'grade_level', 'section'] as $column) {
+            if (! Schema::hasColumn('students', $column)) {
+                Schema::table('students', function (Blueprint $table) use ($column) {
+                    $table->string($column)->nullable();
+                });
+            }
+        }
 
-        DB::statement(<<<'SQL'
-            WITH parsed_students AS (
-                SELECT
-                    id,
-                    regexp_split_to_array(trim(name), '\s+') AS name_parts
-                FROM students
-            )
-            UPDATE students
-            SET
-                first_name = name_parts[1],
-                middle_name = CASE
-                    WHEN array_length(name_parts, 1) > 2
-                    THEN array_to_string(name_parts[2:array_length(name_parts, 1) - 1], ' ')
-                    ELSE NULL
-                END,
-                last_name = CASE
-                    WHEN array_length(name_parts, 1) > 1
-                    THEN name_parts[array_length(name_parts, 1)]
-                    ELSE NULL
-                END
-            FROM parsed_students
-            WHERE students.id = parsed_students.id
-              AND students.first_name IS NULL
-        SQL);
+        $students = DB::table('students')->get(['id', 'name', 'class', 'first_name', 'middle_name', 'last_name', 'grade_level', 'section']);
 
-        DB::statement(<<<'SQL'
-            UPDATE students
-            SET
-                grade_level = NULLIF(trim(split_part(class, '-', 1)), ''),
-                section = CASE
-                    WHEN position('-' IN class) > 0
-                    THEN NULLIF(trim(substring(class FROM position('-' IN class) + 1)), '')
-                    ELSE NULL
-                END
-            WHERE grade_level IS NULL
-        SQL);
+        foreach ($students as $student) {
+            $nameParts = preg_split('/\s+/', trim((string) ($student->name ?? '')));
+            $parts = array_values(array_filter($nameParts, fn ($part) => $part !== ''));
 
-        Schema::table('students', function (Blueprint $table) {
-            $table->dropColumn(['name', 'class']);
-            $table->dropColumn('qr_code');
-        });
+            $updates = [];
 
+            if (empty($student->first_name) && ! empty($parts)) {
+                $updates['first_name'] = $parts[0];
+            }
+
+            if (empty($student->middle_name) && count($parts) > 2) {
+                $updates['middle_name'] = implode(' ', array_slice($parts, 1, -1));
+            }
+
+            if (empty($student->last_name) && count($parts) > 1) {
+                $updates['last_name'] = $parts[count($parts) - 1];
+            }
+
+            $classValue = trim((string) ($student->class ?? ''));
+
+            if (empty($student->grade_level) && $classValue !== '') {
+                $classParts = explode('-', $classValue, 2);
+                $gradeLevel = trim($classParts[0]);
+                $updates['grade_level'] = $gradeLevel !== '' ? $gradeLevel : null;
+            }
+
+            if (empty($student->section) && $classValue !== '') {
+                $classParts = explode('-', $classValue, 2);
+                $section = isset($classParts[1]) ? trim($classParts[1]) : null;
+                $updates['section'] = $section !== '' ? $section : null;
+            }
+
+            if (! empty($updates)) {
+                DB::table('students')->where('id', $student->id)->update($updates);
+            }
+        }
+
+        if (Schema::hasColumn('students', 'name')) {
+            Schema::table('students', function (Blueprint $table) {
+                $table->dropColumn(['name', 'class']);
+            });
+        }
+
+        if (Schema::hasColumn('students', 'qr_code')) {
+            DB::statement('DROP INDEX IF EXISTS students_qr_code_unique');
+
+            Schema::table('students', function (Blueprint $table) {
+                $table->dropColumn('qr_code');
+            });
+        }
     }
 
     public function down(): void
     {
-        Schema::table('students', function (Blueprint $table) {
-            $table->string('name')->nullable();
-            $table->string('class')->nullable();
-            $table->string('qr_code')->nullable();
-            $table->dropColumn([
-                'first_name',
-                'middle_name',
-                'last_name',
-                'grade_level',
-                'section',
-            ]);
-        });
+        if (! Schema::hasColumn('students', 'name')) {
+            Schema::table('students', function (Blueprint $table) {
+                $table->string('name')->nullable();
+            });
+        }
 
+        if (! Schema::hasColumn('students', 'class')) {
+            Schema::table('students', function (Blueprint $table) {
+                $table->string('class')->nullable();
+            });
+        }
+
+        if (! Schema::hasColumn('students', 'qr_code')) {
+            Schema::table('students', function (Blueprint $table) {
+                $table->string('qr_code')->nullable();
+            });
+        }
+
+        $students = DB::table('students')->whereNotNull('first_name')->orWhereNotNull('middle_name')->orWhereNotNull('last_name')->get(['id', 'first_name', 'middle_name', 'last_name']);
+
+        foreach ($students as $student) {
+            $fullName = trim(implode(' ', array_filter([
+                $student->first_name,
+                $student->middle_name,
+                $student->last_name,
+            ], fn ($value) => $value !== null && $value !== '')));
+
+            if ($fullName !== '') {
+                DB::table('students')->where('id', $student->id)->update([
+                    'name' => $fullName,
+                ]);
+            }
+        }
+
+        foreach (['first_name', 'middle_name', 'last_name', 'grade_level', 'section'] as $column) {
+            if (Schema::hasColumn('students', $column)) {
+                Schema::table('students', function (Blueprint $table) use ($column) {
+                    $table->dropColumn($column);
+                });
+            }
+        }
     }
 };

@@ -2649,7 +2649,6 @@ $sendParentSms = static function (Request $request, SmsService $smsService) use 
             $notifications[] = [
                 'student_id' => $parent['student_id'] ?? null,
                 'notification_type' => 'sms_reminder',
-                'recipient_email' => $parent['email'] ?? null,
                 'recipient_phone' => $parent['sms_phone'],
                 'message' => $data['message'],
                 'sent_at' => now()->toIso8601String(),

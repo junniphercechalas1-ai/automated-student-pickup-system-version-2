@@ -2,10 +2,41 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class ParentPortalLayoutTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        putenv('VITE_SUPABASE_URL=https://example.supabase.co');
+        putenv('SUPABASE_SERVICE_KEY=test-service-key');
+        $_ENV['VITE_SUPABASE_URL'] = 'https://example.supabase.co';
+        $_ENV['SUPABASE_SERVICE_KEY'] = 'test-service-key';
+        $_SERVER['VITE_SUPABASE_URL'] = 'https://example.supabase.co';
+        $_SERVER['SUPABASE_SERVICE_KEY'] = 'test-service-key';
+
+        Http::fake(function ($request) {
+            if (str_contains($request->url(), '/rest/v1/staff')) {
+                return Http::response([], 200);
+            }
+
+            if (str_contains($request->url(), '/rest/v1/parents')) {
+                return Http::response([[
+                    'id' => 42,
+                    'auth_user_id' => 'parent-user-id',
+                    'email' => 'parent@example.com',
+                    'is_approved' => true,
+                    'is_active' => true,
+                ]], 200);
+            }
+
+            return Http::response([], 200);
+        });
+    }
+
     public function test_parent_layout_uses_authenticated_parent_name_and_role(): void
     {
         $response = $this->withSession([
@@ -52,7 +83,7 @@ class ParentPortalLayoutTest extends TestCase
         $response->assertSee('Reminder');
         $response->assertSee('How It Works', false);
         $response->assertSee('Receive SMS Reminder');
-        $response->assertSee('Open Your QR Code');
+        $response->assertSee('Open My QR Code and tap Generate QR Code to display it.');
         $response->assertSee('QR Code Verification');
         $response->assertSee('Pickup Recorded');
         $response->assertSee('class="parent-how-it-works"', false);
