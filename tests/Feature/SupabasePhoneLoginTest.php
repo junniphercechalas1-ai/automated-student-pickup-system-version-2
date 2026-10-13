@@ -75,7 +75,7 @@ class SupabasePhoneLoginTest extends TestCase
     {
         Http::fake([
             'https://example.supabase.co/rest/v1/staff*' => Http::response([
-                ['id' => 'staff-auth-user-1', 'email' => 'contact@example.com', 'is_approved' => true, 'is_active' => true],
+                ['auth_user_id' => 'staff-auth-user-1', 'is_approved' => true, 'is_active' => true],
             ], 200),
         ]);
 
@@ -85,7 +85,7 @@ class SupabasePhoneLoginTest extends TestCase
 
         Http::assertSent(function ($request) {
             return str_contains($request->url(), '/rest/v1/staff')
-                && ($request->data()['id'] ?? null) === 'eq.staff-auth-user-1'
+                && ($request->data()['auth_user_id'] ?? null) === 'eq.staff-auth-user-1'
                 && ! array_key_exists('email', $request->data());
         });
     }

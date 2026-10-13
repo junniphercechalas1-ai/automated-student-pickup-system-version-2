@@ -57,6 +57,50 @@ class ParentProfileSyncTest extends TestCase
         });
     }
 
+    public function test_parent_profile_update_does_not_read_or_write_a_profile_email(): void
+    {
+        Http::fake(function ($request) {
+            if (str_contains($request->url(), '/rest/v1/staff')) {
+                return Http::response([], 200);
+            }
+
+            if (str_contains($request->url(), '/rest/v1/parents') && $request->method() === 'GET') {
+                return Http::response([['id' => 42]], 200);
+            }
+
+            if (str_contains($request->url(), '/rest/v1/parents') && $request->method() === 'PATCH') {
+                return Http::response([['id' => 42]], 200);
+            }
+
+            if (str_contains($request->url(), '/auth/v1/admin/users/auth-user-123')) {
+                return Http::response([
+                    'id' => 'auth-user-123',
+                    'user_metadata' => ['role' => 'parent'],
+                ], 200);
+            }
+
+            return Http::response([], 200);
+        });
+
+        $this->withSession([
+            'supabase_user' => [
+                'id' => 'auth-user-123',
+                'email' => 'parent@accounts.orion.invalid',
+                'user_metadata' => ['role' => 'parent', 'username' => 'jane-doe'],
+            ],
+        ])->post('/parent/profile/update', [
+            'full_name' => 'Jane Doe',
+            'mobile_number' => '+639170001111',
+            'relationship' => 'Mother',
+        ])->assertRedirect(route('parent.profile'));
+
+        Http::assertSent(function ($request) {
+            return str_contains($request->url(), '/rest/v1/parents')
+                && $request->method() === 'PATCH'
+                && ! array_key_exists('email', $request->data());
+        });
+    }
+
     public function test_student_list_is_available_via_backend_route(): void
     {
         Http::fake([
@@ -154,10 +198,10 @@ class ParentProfileSyncTest extends TestCase
                 'email' => 'parent@example.com',
             ], 200),
             'https://example.supabase.co/rest/v1/staff*' => Http::response([
-                ['id' => 'auth-user-123', 'email' => 'parent@example.com', 'is_approved' => false, 'is_active' => true],
+                ['id' => 'auth-user-123', 'is_approved' => false, 'is_active' => true],
             ], 200),
             'https://example.supabase.co/rest/v1/parents*' => Http::response([
-                ['id' => 99, 'auth_user_id' => 'auth-user-123', 'email' => 'parent@example.com', 'is_approved' => true, 'is_active' => true],
+                ['id' => 99, 'auth_user_id' => 'auth-user-123', 'is_approved' => true, 'is_active' => true],
             ], 200),
         ]);
 
@@ -193,7 +237,7 @@ class ParentProfileSyncTest extends TestCase
         Http::fake([
             'https://example.supabase.co/rest/v1/staff*' => Http::response([], 200),
             'https://example.supabase.co/rest/v1/parents*' => Http::response([
-                ['id' => 99, 'auth_user_id' => 'auth-user-123', 'email' => 'parent@example.com', 'is_approved' => true, 'is_active' => true],
+                ['id' => 99, 'auth_user_id' => 'auth-user-123', 'is_approved' => true, 'is_active' => true],
             ], 200),
         ]);
 

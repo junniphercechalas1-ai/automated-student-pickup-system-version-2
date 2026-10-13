@@ -1,4 +1,5 @@
 import QRCode from 'qrcode';
+import './passwordVisibility.js';
 
 window.addEventListener('DOMContentLoaded', async () => {
     const qrCanvas = document.getElementById('parentQrCodeCanvas');

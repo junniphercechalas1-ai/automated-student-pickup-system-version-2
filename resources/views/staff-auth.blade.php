@@ -38,7 +38,12 @@
                         </div>
                         <div class="space-y-2 text-sm">
                             <label for="password" class="block font-medium text-slate-700">Password</label>
-                            <input id="password" name="password" type="password" required class="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100" />
+                            <div class="relative">
+                                <input id="password" name="password" type="password" required class="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 pr-12 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100" />
+                                <button type="button" data-password-toggle="password" aria-label="Show password" aria-pressed="false" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                </button>
+                            </div>
                         </div>
                         <button type="submit" class="w-full rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700">Login</button>
                     </form>
@@ -91,11 +96,21 @@
                         <div class="grid gap-3 sm:grid-cols-2">
                             <div class="space-y-2 text-sm">
                                 <label for="password_register" class="block font-medium text-slate-700">Password</label>
-                                <input id="password_register" name="password" type="password" required class="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100" />
+                                <div class="relative">
+                                    <input id="password_register" name="password" type="password" required class="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 pr-12 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100" />
+                                    <button type="button" data-password-toggle="password_register" aria-label="Show password" aria-pressed="false" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                    </button>
+                                </div>
                             </div>
                             <div class="space-y-2 text-sm">
                                 <label for="confirm_password" class="block font-medium text-slate-700">Confirm Password</label>
-                                <input id="confirm_password" name="confirm_password" type="password" required class="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100" />
+                                <div class="relative">
+                                    <input id="confirm_password" name="confirm_password" type="password" required class="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 pr-12 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100" />
+                                    <button type="button" data-password-toggle="confirm_password" aria-label="Show password confirmation" aria-pressed="false" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         <div class="rounded-2xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600">
@@ -105,7 +120,7 @@
                         <button type="submit" class="w-full rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700">Create Staff Account</button>
                     </form>
                     <div class="flex items-center justify-between text-sm text-slate-500">
-                        <button id="showLogin" class="font-semibold text-blue-600 hover:text-blue-700">Back to login</button>
+                        <a href="/staff/login" class="font-semibold text-blue-600 hover:text-blue-700">Back to login</a>
                     </div>
                 </div>
 

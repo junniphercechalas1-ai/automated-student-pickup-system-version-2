@@ -134,7 +134,7 @@ class ParentPasswordResetTest extends TestCase
                 }
 
                 return Http::response([[
-                    'id' => 'staff-user-1',
+                    'auth_user_id' => 'staff-user-1',
                     'is_approved' => false,
                     'phone_number' => '+639171234568',
                 ]], 200);
@@ -272,7 +272,7 @@ class ParentPasswordResetTest extends TestCase
         Http::fake(function ($request) use (&$otp) {
             if (str_contains($request->url(), '/rest/v1/staff')) {
                 return Http::response([[
-                    'id' => 'staff-user-1',
+                    'auth_user_id' => 'staff-user-1',
                     'phone_number' => '+639171234568',
                 ]], 200);
             }
@@ -331,7 +331,7 @@ class ParentPasswordResetTest extends TestCase
         Http::fake(function ($request) use (&$otp) {
             if (str_contains($request->url(), '/rest/v1/staff')) {
                 return Http::response([[
-                    'id' => 'staff-user-1',
+                    'auth_user_id' => 'staff-user-1',
                     'phone_number' => '+639171234568',
                 ]], 200);
             }
@@ -365,6 +365,9 @@ class ParentPasswordResetTest extends TestCase
     {
         $this->get('/staff/login')
             ->assertOk()
+            ->assertSee('Staff Login')
+            ->assertSee('Back to account selection')
+            ->assertDontSee('Go to parent login')
             ->assertSee('Account Number')
             ->assertSee('/staff/password-reset/request')
             ->assertDontSee('/supabase/reset-password')

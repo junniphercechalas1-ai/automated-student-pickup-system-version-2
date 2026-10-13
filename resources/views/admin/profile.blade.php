@@ -53,6 +53,12 @@
                     <p class="mt-1 text-sm text-gray-500">Used to sign in and receive administrator password reset codes by SMS.</p>
                 </div>
 
+                <div>
+                    <label for="username" class="block text-sm font-medium text-gray-700 mb-2">Username</label>
+                    <input id="username" type="text" value="{{ $username ?: 'Not available' }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100" readonly>
+                    <p class="mt-1 text-sm text-gray-500">Stored with your Supabase Auth account.</p>
+                </div>
+
                 <!-- Account Status -->
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Account Status</label>

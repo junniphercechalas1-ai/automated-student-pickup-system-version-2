@@ -54,8 +54,8 @@
                     </div>
 
                     <div>
-                        <label class="block text-sm font-semibold text-slate-950">Contact Email <span class="font-normal text-slate-500">(optional; not used to sign in)</span></label>
-                        <input name="email" type="email" value="{{ old('email', $email ?? '') }}" class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 placeholder-slate-400 transition-colors focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                        <label class="block text-sm font-semibold text-slate-950">Username</label>
+                        <input value="{{ $username ?: 'Not provided' }}" readonly class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-slate-500" />
                     </div>
 
                     <div>

@@ -27,25 +27,18 @@ class AdminSupabaseLoginTest extends TestCase
             'https://example.supabase.co/rest/v1/admin*' => Http::response([
                 [
                     'id' => '2d9df428-9249-421f-abdd-a186f877728',
-                    'username' => 'adminuser',
-                    'email' => null,
                     'phone_number' => '+639171234567',
                     'auth_user_id' => '11111111-1111-1111-1111-111111111111',
-                    'password_hash' => '',
                     'first_name' => 'Admin',
                     'last_name' => 'Administrator',
                     'is_active' => true,
                 ],
             ], 200),
-            'https://example.supabase.co/auth/v1/admin/users/11111111-1111-1111-1111-111111111111' => Http::response([
-                'id' => '11111111-1111-1111-1111-111111111111',
-                'email' => 'admin@example.com',
-            ], 200),
             'https://example.supabase.co/auth/v1/token*' => Http::response([
                 'access_token' => 'supabase-access-token',
                 'user' => [
                     'id' => '11111111-1111-1111-1111-111111111111',
-                        'email' => 'admin@example.com',
+                    'user_metadata' => ['username' => 'adminuser', 'role' => 'admin'],
                 ],
             ], 200),
         ]);
@@ -58,10 +51,11 @@ class AdminSupabaseLoginTest extends TestCase
         $response->assertRedirect('/admin/dashboard');
         $this->assertSame('2d9df428-9249-421f-abdd-a186f877728', session('admin_id'));
         Http::assertSent(fn ($request) => str_contains($request->url(), '/auth/v1/token')
-            && ($request->data()['email'] ?? null) === 'admin@example.com'
+            && ($request->data()['email'] ?? null) === 'adminuser@accounts.orion.invalid'
             && ! array_key_exists('phone', $request->data()));
         Http::assertSent(fn ($request) => str_contains($request->url(), '/rest/v1/admin?')
-            && ($request->data()['username'] ?? null) === 'eq.adminuser');
+            && ($request->data()['auth_user_id'] ?? null) === 'eq.11111111-1111-1111-1111-111111111111'
+            && ! array_key_exists('username', $request->data()));
     }
 
     public function test_admin_profile_password_change_reports_failed_auth_password_save(): void
@@ -94,7 +88,10 @@ class AdminSupabaseLoginTest extends TestCase
 
             if (str_contains($request->url(), '/auth/v1/admin/users/admin-auth-id')
                 && $request->method() === 'GET') {
-                return Http::response(['id' => 'admin-auth-id', 'email' => 'admin@example.com'], 200);
+                return Http::response([
+                    'id' => 'admin-auth-id',
+                    'user_metadata' => ['username' => 'adminuser', 'role' => 'admin'],
+                ], 200);
             }
 
             if (str_contains($request->url(), '/auth/v1/admin/users/admin-auth-id')
@@ -147,7 +144,10 @@ class AdminSupabaseLoginTest extends TestCase
 
             if (str_contains($request->url(), '/auth/v1/admin/users/admin-auth-id')
                 && $request->method() === 'GET') {
-                return Http::response(['id' => 'admin-auth-id', 'email' => 'admin@example.com'], 200);
+                return Http::response([
+                    'id' => 'admin-auth-id',
+                    'user_metadata' => ['username' => 'adminuser', 'role' => 'admin'],
+                ], 200);
             }
 
             if (str_contains($request->url(), '/auth/v1/admin/users/admin-auth-id')
@@ -290,7 +290,7 @@ class AdminSupabaseLoginTest extends TestCase
         Http::assertNotSent(fn ($request) => str_contains($request->url(), '/auth/v1/admin/users/'));
     }
 
-    public function test_admin_login_uses_linked_auth_email_for_username_and_password(): void
+    public function test_admin_login_rejects_auth_metadata_with_a_different_username(): void
     {
         putenv('VITE_SUPABASE_URL=https://example.supabase.co');
         putenv('VITE_SUPABASE_ANON_KEY=test-anon-key');
@@ -306,22 +306,19 @@ class AdminSupabaseLoginTest extends TestCase
             if (str_contains($request->url(), '/rest/v1/admin?')) {
                 return Http::response([[
                     'id' => 'admin-profile-id',
-                    'username' => 'adminuser',
-                    'email' => null,
                     'phone_number' => '+639171234567',
                     'auth_user_id' => 'admin-auth-id',
-                    'password_hash' => '',
                     'is_active' => true,
                 ]], 200);
             }
 
-            if (str_contains($request->url(), '/auth/v1/admin/users/admin-auth-id')
-                && $request->method() === 'GET') {
-                return Http::response(['id' => 'admin-auth-id', 'email' => 'admin@example.com'], 200);
-            }
-
             if (str_contains($request->url(), '/auth/v1/token')) {
-                return Http::response(['message' => 'Invalid login credentials.'], 400);
+                return Http::response([
+                    'user' => [
+                        'id' => 'admin-auth-id',
+                        'user_metadata' => ['username' => 'other-admin', 'role' => 'admin'],
+                    ],
+                ], 200);
             }
 
             return Http::response([], 200);
@@ -334,8 +331,9 @@ class AdminSupabaseLoginTest extends TestCase
             ->assertSessionHasErrors('username');
 
         Http::assertSent(fn ($request) => str_contains($request->url(), '/auth/v1/token')
-            && ($request->data()['email'] ?? null) === 'admin@example.com'
+            && ($request->data()['email'] ?? null) === 'adminuser@accounts.orion.invalid'
             && ! array_key_exists('phone', $request->data()));
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), '/rest/v1/admin'));
     }
 
     public function test_admin_login_rejects_invalid_username_format(): void

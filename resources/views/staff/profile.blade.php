@@ -6,7 +6,7 @@
     $staffPhoto = $staff['photo_url'] ?? ($user['user_metadata']['avatar_url'] ?? null);
     $staffPhoto = $staffPhoto ?: '/images/default-avatar.svg';
     $fullName = $staff['full_name'] ?? ($user['user_metadata']['full_name'] ?? $user['full_name'] ?? '');
-    $email = $staff['email'] ?? ($user['email'] ?? '');
+    $username = $user['user_metadata']['username'] ?? '';
     $phoneNumber = $staff['phone_number'] ?? ($user['user_metadata']['phone_number'] ?? '');
     $isApproved = (bool) ($staff['is_approved'] ?? ($user['user_metadata']['is_approved'] ?? true));
     $roleLabel = 'Gate Staff';
@@ -43,8 +43,8 @@
                     </div>
                     <div class="staff-profile-meta-list">
                         <div class="staff-profile-meta-item">
-                            <span class="staff-profile-meta-icon">✉</span>
-                            <span>{{ $email ?: 'Not provided' }}</span>
+                            <span class="staff-profile-meta-icon">@</span>
+                            <span>{{ $username ?: 'Not provided' }}</span>
                         </div>
                         <div class="staff-profile-meta-item">
                             <span class="staff-profile-meta-icon">☎</span>
@@ -83,18 +83,13 @@
                         </div>
 
                         <div class="staff-profile-field">
-                            <label>Email Address</label>
-                            <div class="staff-profile-value-box break-all">{{ $email ?: 'Not provided' }}</div>
-                        </div>
-
-                        <div class="staff-profile-field">
                             <label>Contact Number</label>
                             <div class="staff-profile-value-box">{{ $phoneNumber ?: 'Not provided' }}</div>
                         </div>
 
                         <div class="staff-profile-field">
                             <label>Username</label>
-                            <div class="staff-profile-value-box">{{ $user['user_metadata']['username'] ?? $user['email'] ?? 'Not provided' }}</div>
+                            <div class="staff-profile-value-box">{{ $username ?: 'Not provided' }}</div>
                         </div>
                     </div>
 
@@ -105,11 +100,6 @@
                         <div class="staff-profile-field">
                             <label for="full_name">Full Name</label>
                             <input id="full_name" name="full_name" type="text" value="{{ old('full_name', $fullName) }}" />
-                        </div>
-
-                        <div class="staff-profile-field">
-                            <label for="email">Email Address</label>
-                            <input id="email" name="email" type="email" value="{{ old('email', $email) }}" />
                         </div>
 
                         <div class="staff-profile-field">

@@ -72,6 +72,7 @@ create index if not exists idx_parents_is_approved
 -- 4. staff table for staff access / approvals
 create table if not exists public.staff (
   id uuid primary key references auth.users(id) on delete cascade,
+  auth_user_id uuid references auth.users(id) on delete cascade,
   first_name text,
   middle_name text,
   last_name text,
@@ -83,9 +84,19 @@ create table if not exists public.staff (
 );
 
 alter table public.staff alter column email drop not null;
+alter table public.staff
+  add column if not exists auth_user_id uuid references auth.users(id) on delete cascade;
+update public.staff as staff_profile
+set auth_user_id = auth_user.id
+from auth.users as auth_user
+where staff_profile.auth_user_id is null
+  and staff_profile.id = auth_user.id;
 
 create index if not exists idx_staff_email
   on public.staff (email);
+create unique index if not exists idx_staff_auth_user_id
+  on public.staff (auth_user_id)
+  where auth_user_id is not null;
 
 -- Optional RLS setup for the staff table
 alter table public.staff enable row level security;
@@ -93,7 +104,7 @@ alter table public.staff enable row level security;
 create policy "staff can view own record"
 on public.staff
 for select
-using (auth.uid() = id);
+using (auth.uid() = auth_user_id);
 
 create policy "service role can manage staff"
 on public.staff

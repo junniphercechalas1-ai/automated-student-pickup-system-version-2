@@ -1,4 +1,5 @@
 import { bindPhoneSignupVerification } from './phoneSignupVerification.js';
+import './passwordVisibility.js';
 
 const loginForm = document.getElementById('loginForm');
 const registerForm = document.getElementById('registerForm');
@@ -10,7 +11,6 @@ const registerSection = document.getElementById('registerSection');
 const resetSection = document.getElementById('resetSection');
 const showRegister = document.getElementById('showRegister');
 const showReset = document.getElementById('showReset');
-const showLogin = document.getElementById('showLogin');
 const showLoginFromReset = document.getElementById('showLoginFromReset');
 const getVerifiedSignupFlowId = bindPhoneSignupVerification({
     form: registerForm,
@@ -147,25 +147,8 @@ async function handleLogin(event) {
         return;
     }
 
-    const userRole = user?.user_metadata?.role;
-    let isStaffRecordAuthorized = false;
-    try {
-        const staffCheckResponse = await fetch(`/supabase/staff-check?user_id=${encodeURIComponent(user.id)}`);
-        if (!staffCheckResponse.ok) {
-            showMessage('Signed in, but staff approval could not be checked. Please try again or contact the administrator.', true);
-            return;
-        }
-        const staffPayload = await staffCheckResponse.json();
-        isStaffRecordAuthorized = Boolean(staffPayload.authorized);
-    } catch {
-        showMessage('Signed in, but staff approval could not be checked. Please try again or contact the administrator.', true);
-        return;
-    }
-
-    const isStaffAuthorized = userRole === 'admin' || isStaffRecordAuthorized;
-
-    if (!isStaffAuthorized) {
-        showMessage('Your staff account is waiting for administrator approval.', true);
+    if (user?.user_metadata?.role !== 'staff' || loginPayload.user_id !== user.id) {
+        showMessage('Signed in, but the staff account details could not be verified. Please try again or contact the administrator.', true);
         return;
     }
 
@@ -279,13 +262,6 @@ if (showRegister) {
 if (showReset) {
     showReset.addEventListener('click', () => {
         window.location.assign('/staff/login#forgot-password');
-    });
-}
-
-if (showLogin) {
-    showLogin.addEventListener('click', () => {
-        window.history.pushState({}, '', '/staff/login');
-        showSection('login');
     });
 }
 

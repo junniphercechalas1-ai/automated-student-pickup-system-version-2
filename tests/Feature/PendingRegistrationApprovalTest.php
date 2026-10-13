@@ -68,7 +68,9 @@ class PendingRegistrationApprovalTest extends TestCase
         Http::assertSent(fn ($request) => str_contains($request->url(), '/rest/v1/staff')
             && $request->method() === 'POST'
             && $request->data()['id'] === 'approved-staff-id'
-            && $request->data()['is_approved'] === true);
+            && $request->data()['auth_user_id'] === 'approved-staff-id'
+            && $request->data()['is_approved'] === true
+            && ! array_key_exists('email', $request->data()));
         $this->assertDatabaseMissing('pending_registrations', ['id' => $registrationId]);
     }
 
@@ -117,7 +119,8 @@ class PendingRegistrationApprovalTest extends TestCase
         Http::assertSent(fn ($request) => str_contains($request->url(), '/rest/v1/parents')
             && $request->method() === 'POST'
             && $request->data()['auth_user_id'] === 'approved-parent-id'
-            && $request->data()['is_approved'] === true);
+            && $request->data()['is_approved'] === true
+            && ! array_key_exists('email', $request->data()));
         $this->assertDatabaseMissing('pending_registrations', ['id' => $registrationId]);
     }
 
@@ -256,7 +259,7 @@ class PendingRegistrationApprovalTest extends TestCase
             ->assertJsonPath('counts.pending_parents', 1);
     }
 
-    public function test_parent_list_uses_auth_email_when_profile_email_is_empty(): void
+    public function test_parent_list_uses_auth_username_when_profile_has_no_email_column(): void
     {
         $this->createPendingRegistrationTable();
         Http::fake(function ($request) {
@@ -273,7 +276,6 @@ class PendingRegistrationApprovalTest extends TestCase
                     'last_name' => 'Holland',
                     'student_id' => 17,
                     'phone_number' => '+639170000041',
-                    'email' => null,
                     'is_approved' => true,
                     'is_active' => true,
                 ]], 200);
@@ -287,6 +289,7 @@ class PendingRegistrationApprovalTest extends TestCase
                 return Http::response(['users' => [[
                     'id' => 'parent-auth-id',
                     'email' => 'echo@accounts.orion.invalid',
+                    'user_metadata' => ['username' => 'echo-holland'],
                 ]]], 200);
             }
 
@@ -301,10 +304,42 @@ class PendingRegistrationApprovalTest extends TestCase
         ])->withSession(['admin_id' => 'admin-1'])
             ->getJson('/admin/parents?format=json')
             ->assertOk()
-            ->assertJsonPath('parents.0.email', 'echo@accounts.orion.invalid');
+            ->assertJsonPath('parents.0.username', 'echo-holland');
 
         Http::assertSent(fn ($request) => str_contains($request->url(), '/auth/v1/admin/users')
             && $request->method() === 'GET');
+    }
+
+    public function test_staff_list_uses_auth_username_without_a_profile_email_column(): void
+    {
+        Http::fake(function ($request) {
+            if (str_contains($request->url(), '/rest/v1/staff')) {
+                return Http::response([[
+                    'id' => 'staff-auth-id',
+                    'auth_user_id' => 'staff-auth-id',
+                    'first_name' => 'Alex',
+                    'last_name' => 'Staff',
+                    'is_approved' => true,
+                    'is_active' => true,
+                ]], 200);
+            }
+
+            if (str_contains($request->url(), '/auth/v1/admin/users')) {
+                return Http::response(['users' => [[
+                    'id' => 'staff-auth-id',
+                    'email' => 'alex@accounts.orion.invalid',
+                    'user_metadata' => ['username' => 'alex-staff'],
+                ]]], 200);
+            }
+
+            return Http::response([], 200);
+        });
+
+        $this->withSession(['admin_id' => 'admin-1'])
+            ->getJson('/admin/staff?format=json')
+            ->assertOk()
+            ->assertJsonPath('0.username', 'alex-staff')
+            ->assertJsonMissingPath('0.email');
     }
 
     public function test_declining_a_pending_registration_does_not_create_an_auth_user(): void
@@ -366,6 +401,7 @@ class PendingRegistrationApprovalTest extends TestCase
             if (str_contains($request->url(), '/rest/v1/staff') && $request->method() === 'GET') {
                 return Http::response([[
                     'id' => 'staff-auth-id',
+                    'auth_user_id' => 'staff-auth-id',
                     'email' => null,
                     'phone_number' => '+639171234573',
                 ]], 200);
@@ -418,6 +454,7 @@ class PendingRegistrationApprovalTest extends TestCase
             if (str_contains($request->url(), '/rest/v1/staff') && $request->method() === 'GET') {
                 return Http::response([[
                     'id' => 'staff-auth-id',
+                    'auth_user_id' => 'staff-auth-id',
                     'email' => null,
                     'phone_number' => '+639171234575',
                     'is_approved' => false,

@@ -71,7 +71,7 @@ class ConfirmLegacyPhoneAccountsTest extends TestCase
 
             if (str_contains($request->url(), '/rest/v1/staff')) {
                 return Http::response([[
-                    'id' => 'staff-user-1',
+                    'auth_user_id' => 'staff-user-1',
                     'phone_number' => '+639170002222',
                 ]], 200);
             }

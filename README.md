@@ -69,6 +69,10 @@ The admin parent and student screens load records from Supabase through the Lara
 
 After saving environment changes, redeploy the service. The Dockerfile runs pending Laravel migrations at container startup. If the Render service uses a native runtime instead of the Dockerfile, run `php artisan migrate --force` as its deploy command.
 
+Admin usernames are stored in Supabase Auth user metadata, like parent and staff usernames, rather than in `public.admin`. Before deploying this admin login change, run [`database/supabase/2026_10_13_admin_usernames_in_auth_metadata.sql`](./database/supabase/2026_10_13_admin_usernames_in_auth_metadata.sql) in the Supabase SQL Editor. It keeps existing passwords, changes linked active admin Auth emails to the app's synthetic username identities, copies each active admin username and role into Auth metadata, then removes the profile-table `username` and `email` columns. Inactive admin profiles are ignored by migration validation and metadata updates. If the older [`database/supabase/2026_10_13_link_admins_to_auth_users.sql`](./database/supabase/2026_10_13_link_admins_to_auth_users.sql) has not been run, run it first. Resolve any migration preflight errors before retrying.
+
+Staff profiles use the same explicit Auth link as parent and admin profiles. Before deploying code that relies on `staff.auth_user_id`, run [`database/supabase/2026_10_13_staff_auth_user_id.sql`](./database/supabase/2026_10_13_staff_auth_user_id.sql) in the Supabase SQL Editor. It backfills existing links from the legacy `staff.id`-equals-Auth-ID relationship and stops if any active staff profile cannot be linked.
+
 Parent-to-admin messaging has been removed. Existing support-message database records are retained but are no longer accessible through the application; parent and student profile records are stored in Supabase.
 
 ## GSM SMS bridge

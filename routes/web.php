@@ -661,7 +661,7 @@ Route::post('/supabase/username-login', function (Request $request) {
         }
 
         $table = $validated['account_type'] === 'parent' ? 'parents' : 'staff';
-        $userIdColumn = $validated['account_type'] === 'parent' ? 'auth_user_id' : 'id';
+        $userIdColumn = 'auth_user_id';
         $profileResponse = Http::withHeaders([
             'apikey' => $serviceKey,
             'Authorization' => 'Bearer '.$serviceKey,
@@ -692,6 +692,7 @@ Route::post('/supabase/username-login', function (Request $request) {
 
         return response()->json([
             'access_token' => $authResponse->json('access_token'),
+            ...($validated['account_type'] === 'staff' ? ['user_id' => $authUserId] : []),
         ]);
     } catch (\Throwable $exception) {
         Log::error('Username sign-in request failed.', [
@@ -702,150 +703,6 @@ Route::post('/supabase/username-login', function (Request $request) {
 
         return response()->json(['message' => 'Sign-in is temporarily unavailable. Please try again.'], 503);
     }
-});
-
-Route::post('/supabase/username-activate', function (Request $request) {
-    $validated = $request->validate([
-        'username' => ['required', 'string', 'max:30', 'regex:/^[A-Za-z0-9][A-Za-z0-9._-]{2,29}$/'],
-        'account_type' => 'required|in:parent,staff',
-        'phone_verification_flow_id' => 'required|string|size:48',
-    ]);
-    $username = UsernameIdentity::normalize($validated['username']);
-    $role = $validated['account_type'];
-    $flowId = $validated['phone_verification_flow_id'];
-    $verificationCacheKey = 'signup-phone-verification:'.$flowId;
-    $phoneVerification = Cache::get($verificationCacheKey);
-    if (! is_array($phoneVerification)
-        || empty($phoneVerification['verified_at'])
-        || ($phoneVerification['account_type'] ?? null) !== $role
-        || now()->timestamp >= (int) ($phoneVerification['expires_at'] ?? 0)) {
-        return response()->json(['message' => 'Verify your registered mobile number before setting a username.'], 422);
-    }
-
-    $phoneNumber = (string) ($phoneVerification['phone'] ?? '');
-    $supabaseUrl = env('VITE_SUPABASE_URL') ?: env('SUPABASE_URL');
-    $serviceKey = env('SUPABASE_SERVICE_KEY')
-        ?: env('SUPABASE_SERVICE_ROLE_KEY')
-        ?: getenv('SUPABASE_SERVICE_KEY')
-        ?: getenv('SUPABASE_SERVICE_ROLE_KEY');
-    if (! $supabaseUrl || ! $serviceKey) {
-        Log::error('Username activation is unavailable because Supabase configuration is missing.');
-
-        return response()->json(['message' => 'Username setup is temporarily unavailable. Please contact the administrator.'], 503);
-    }
-
-    foreach (DB::table('pending_registrations')->whereIn('status', ['pending', 'processing'])->pluck('details') as $pendingDetails) {
-        $pending = json_decode((string) $pendingDetails, true);
-        if (is_array($pending)
-            && UsernameIdentity::normalize((string) ($pending['username'] ?? '')) === $username) {
-            return response()->json(['message' => 'That username is already in use or awaiting approval. Choose another username.'], 409);
-        }
-    }
-
-    $table = $role === 'parent' ? 'parents' : 'staff';
-    $userIdColumn = $role === 'parent' ? 'auth_user_id' : 'id';
-    $profile = null;
-    $phoneCandidates = [$phoneNumber];
-    if (str_starts_with($phoneNumber, '+639')) {
-        $phoneCandidates[] = '0'.substr($phoneNumber, 3);
-        $phoneCandidates[] = substr($phoneNumber, 1);
-    }
-    foreach ($role === 'parent' ? ['phone_number', 'mobile_number'] : ['phone_number'] as $phoneColumn) {
-        foreach (array_unique($phoneCandidates) as $phoneCandidate) {
-            $profileResponse = Http::withHeaders([
-                'apikey' => $serviceKey,
-                'Authorization' => 'Bearer '.$serviceKey,
-                'Accept' => 'application/json',
-            ])->timeout(10)->get(rtrim($supabaseUrl, '/')."/rest/v1/{$table}", [
-                'select' => $userIdColumn.',is_approved,is_active,'.$phoneColumn,
-                $phoneColumn => 'eq.'.$phoneCandidate,
-                'is_approved' => 'eq.true',
-                'is_active' => 'eq.true',
-                'limit' => 1,
-            ]);
-            if ($profileResponse->successful()) {
-                $candidate = collect($profileResponse->json())->first();
-                if (is_array($candidate)
-                    && PhoneNumber::normalize((string) ($candidate[$phoneColumn] ?? '')) === $phoneNumber) {
-                    $profile = $candidate;
-                    break 2;
-                }
-            } elseif (! in_array((int) $profileResponse->status(), [400, 404], true)) {
-                Log::warning('Unable to look up approved profile during username activation.', [
-                    'role' => $role,
-                    'status' => $profileResponse->status(),
-                ]);
-
-                return response()->json(['message' => 'Username setup is temporarily unavailable. Please try again.'], 503);
-            }
-        }
-    }
-
-    $authUserId = is_array($profile) ? (string) ($profile[$userIdColumn] ?? '') : '';
-    if ($authUserId === '') {
-        return response()->json(['message' => 'No approved account was found for that verified number.'], 404);
-    }
-
-    $authEmail = UsernameIdentity::authEmail($username);
-    $existingAuthResponse = Http::withHeaders([
-        'apikey' => $serviceKey,
-        'Authorization' => 'Bearer '.$serviceKey,
-        'Accept' => 'application/json',
-    ])->timeout(10)->get(rtrim($supabaseUrl, '/').'/auth/v1/admin/users/'.urlencode($authUserId));
-    if ($existingAuthResponse->failed()) {
-        Log::warning('Unable to fetch existing Auth account during username activation.', [
-            'role' => $role,
-            'status' => $existingAuthResponse->status(),
-        ]);
-
-        return response()->json(['message' => 'Username setup is temporarily unavailable. Please try again.'], 503);
-    }
-
-    $existingAuthUser = $existingAuthResponse->json();
-    if (! is_array($existingAuthUser)
-        || (string) ($existingAuthUser['id'] ?? '') !== $authUserId
-        || PhoneNumber::normalize((string) ($existingAuthUser['phone'] ?? '')) !== $phoneNumber) {
-        return response()->json(['message' => 'The verified number does not match the account. Contact the administrator.'], 409);
-    }
-
-    $existingMetadata = $existingAuthUser['user_metadata'] ?? [];
-    $existingUsername = UsernameIdentity::normalize((string) (is_array($existingMetadata) ? ($existingMetadata['username'] ?? '') : ''));
-    if ($existingUsername !== '' && $existingUsername !== $username) {
-        return response()->json(['message' => 'This account already has a username. Contact the administrator to change it.'], 409);
-    }
-
-    $metadata = array_merge(is_array($existingMetadata) ? $existingMetadata : [], [
-        'role' => $role,
-        'username' => $username,
-        'phone_number' => $phoneNumber,
-    ]);
-    $updateResponse = Http::withHeaders([
-        'apikey' => $serviceKey,
-        'Authorization' => 'Bearer '.$serviceKey,
-        'Accept' => 'application/json',
-        'Content-Type' => 'application/json',
-    ])->timeout(10)->put(rtrim($supabaseUrl, '/').'/auth/v1/admin/users/'.urlencode($authUserId), [
-        'email' => $authEmail,
-        'email_confirm' => true,
-        'user_metadata' => $metadata,
-    ]);
-    if ($updateResponse->failed()) {
-        Log::warning('Supabase rejected the username update for an existing Auth account.', [
-            'role' => $role,
-            'status' => $updateResponse->status(),
-        ]);
-        $status = in_array($updateResponse->status(), [409, 422], true) ? 409 : 503;
-
-        return response()->json([
-            'message' => $status === 409
-                ? 'That username is already in use. Choose another username.'
-                : 'Username setup is temporarily unavailable. Please try again.',
-        ], $status);
-    }
-
-    Cache::forget($verificationCacheKey);
-
-    return response()->json(['message' => 'Username set. You can now sign in with your username and existing password.']);
 });
 
 Route::post('/supabase/register-user', function (Request $request, PhoneNumberRegistrationGuard $phoneNumberGuard) {
@@ -1218,7 +1075,7 @@ Route::post('/staff/password-reset/request', function (Request $request, SmsServ
         'Authorization' => 'Bearer '.$serviceKey,
         'Accept' => 'application/json',
     ])->get("{$supabaseUrl}/rest/v1/staff", [
-        'select' => 'id,phone_number',
+        'select' => 'auth_user_id,phone_number',
         'phone_number' => 'eq.'.$phoneNumber,
         'limit' => 1,
     ]);
@@ -1231,7 +1088,7 @@ Route::post('/staff/password-reset/request', function (Request $request, SmsServ
 
     $staff = collect($staffResponse->json())->first();
     if (! is_array($staff)
-        || empty($staff['id'])
+        || empty($staff['auth_user_id'])
         || PhoneNumber::normalize($staff['phone_number'] ?? null) !== $phoneNumber) {
         return response()->json(['message' => 'No staff account is registered with this number.'], 404);
     }
@@ -1246,7 +1103,7 @@ Route::post('/staff/password-reset/request', function (Request $request, SmsServ
     $expiresAt = now()->addMinutes(5);
     $cacheKey = 'staff-password-reset:'.$flowId;
     Cache::put($cacheKey, [
-        'staff_id' => (string) $staff['id'],
+        'staff_id' => (string) $staff['auth_user_id'],
         'phone_hash' => $phoneHash,
         'otp_hash' => Hash::make($otp),
         'attempts' => 0,
@@ -1415,7 +1272,7 @@ Route::post('/supabase/reset-password', function (Request $request, SmsService $
         $accountRecord = null;
         foreach ($phoneFields as $phoneField) {
             $accountResponse = Http::withHeaders($headers)->get("{$supabaseUrl}/rest/v1/{$accountTable}", [
-                'select' => 'id,auth_user_id,is_approved,email,'.$phoneField,
+                'select' => 'id,auth_user_id,is_approved,'.$phoneField,
                 $phoneField => 'eq.'.$submittedPhone,
                 'limit' => 1,
             ]);
@@ -1562,7 +1419,6 @@ Route::post('/supabase/staff-profile', function (Request $request) {
     $request->validate([
         'user_id' => 'required|string',
         'full_name' => 'required|string|max:255',
-        'email' => 'nullable|email|max:255',
         'phone_number' => 'nullable|string|max:50',
         'is_approved' => 'nullable|boolean',
         'profile_photo' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
@@ -1627,8 +1483,8 @@ Route::post('/supabase/staff-profile', function (Request $request) {
         'Authorization' => 'Bearer '.$serviceKey,
         'Accept' => 'application/json',
     ])->get("{$supabaseUrl}/rest/v1/staff", [
-        'select' => 'id,is_approved,is_active',
-        'id' => 'eq.'.urlencode((string) $request->input('user_id')),
+        'select' => 'id,auth_user_id,is_approved,is_active',
+        'auth_user_id' => 'eq.'.urlencode((string) $request->input('user_id')),
         'limit' => 1,
     ]);
     $existingStaff = $existingStaffResponse->successful()
@@ -1636,13 +1492,15 @@ Route::post('/supabase/staff-profile', function (Request $request) {
         : null;
 
     $payload = [
-        'id' => $request->input('user_id'),
+        'auth_user_id' => $request->input('user_id'),
         ...NameParts::split((string) $request->input('full_name')),
-        'email' => $request->input('email'),
         'phone_number' => PhoneNumber::normalize($request->input('phone_number')),
         'is_approved' => is_array($existingStaff) ? (bool) ($existingStaff['is_approved'] ?? false) : false,
         'is_active' => is_array($existingStaff) ? (bool) ($existingStaff['is_active'] ?? true) : true,
     ];
+    $payload['id'] = is_array($existingStaff) && ! empty($existingStaff['id'])
+        ? $existingStaff['id']
+        : $request->input('user_id');
 
     if ($photoUrl) {
         $payload['photo_url'] = $photoUrl;
@@ -1656,7 +1514,7 @@ Route::post('/supabase/staff-profile', function (Request $request) {
         'Content-Type' => 'application/json',
         'Accept' => 'application/json',
         'Prefer' => 'resolution=merge-duplicates,return=representation',
-    ])->post("{$supabaseUrl}/rest/v1/staff?on_conflict=id", $payloadForSupabase);
+    ])->post("{$supabaseUrl}/rest/v1/staff?on_conflict=auth_user_id", $payloadForSupabase);
 
     if ($response->failed()) {
         $details = $response->json();
@@ -1674,7 +1532,7 @@ Route::post('/supabase/staff-profile', function (Request $request) {
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
                 'Prefer' => 'resolution=merge-duplicates,return=representation',
-            ])->post("{$supabaseUrl}/rest/v1/staff?on_conflict=id", $payloadForSupabase);
+            ])->post("{$supabaseUrl}/rest/v1/staff?on_conflict=auth_user_id", $payloadForSupabase);
 
             if (! $fallbackResponse->failed()) {
                 return response()->json([
@@ -1722,8 +1580,8 @@ Route::get('/supabase/staff-check', function (Request $request) {
         'Authorization' => 'Bearer '.$serviceKey,
         'Accept' => 'application/json',
     ])->get("{$supabaseUrl}/rest/v1/staff", [
-        'select' => 'id,email,is_approved,is_active',
-        'id' => 'eq.'.$userId,
+        'select' => 'auth_user_id,is_approved,is_active',
+        'auth_user_id' => 'eq.'.$userId,
     ]);
 
     if ($response->failed()) {
@@ -1876,9 +1734,9 @@ $getParentData = function (Request $request) use ($makeParentQrToken) {
     ];
 
     $relationship = $user['user_metadata']['relationship'] ?? 'Parent/Guardian';
-    $mobile = $user['user_metadata']['mobile_number'] ?? $user['email'] ?? 'N/A';
+    $mobile = $user['user_metadata']['mobile_number'] ?? 'N/A';
     $fullName = $user['user_metadata']['full_name'] ?? 'N/A';
-    $email = $user['email'] ?? 'N/A';
+    $username = UsernameIdentity::normalize((string) ($user['user_metadata']['username'] ?? ''));
 
     $supabaseUrl = env('VITE_SUPABASE_URL');
     $serviceKey = env('SUPABASE_SERVICE_KEY') ?: env('SUPABASE_SERVICE_ROLE_KEY');
@@ -1897,7 +1755,7 @@ $getParentData = function (Request $request) use ($makeParentQrToken) {
                 'Authorization' => 'Bearer '.$serviceKey,
                 'Accept' => 'application/json',
             ])->get("{$supabaseUrl}/rest/v1/parents", [
-                'select' => 'id,student_id,first_name,middle_name,last_name,phone_number,relationship,email',
+                'select' => 'id,student_id,first_name,middle_name,last_name,phone_number,relationship',
                 'auth_user_id' => 'eq.'.urlencode((string) ($user['id'] ?? '')),
             ]);
 
@@ -1907,19 +1765,8 @@ $getParentData = function (Request $request) use ($makeParentQrToken) {
                     'Authorization' => 'Bearer '.$serviceKey,
                     'Accept' => 'application/json',
                 ])->get("{$supabaseUrl}/rest/v1/parents", [
-                    'select' => 'id,student_id,first_name,middle_name,last_name,phone_number,relationship,email',
+                    'select' => 'id,student_id,first_name,middle_name,last_name,phone_number,relationship',
                     'phone_number' => 'eq.'.urlencode($parentMobile),
-                ]);
-            }
-
-            if ($parentResponse->ok() && empty($parentResponse->json()) && filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $parentResponse = Http::withHeaders([
-                    'apikey' => $serviceKey,
-                    'Authorization' => 'Bearer '.$serviceKey,
-                    'Accept' => 'application/json',
-                ])->get("{$supabaseUrl}/rest/v1/parents", [
-                    'select' => 'id,student_id,first_name,middle_name,last_name,phone_number,relationship,email',
-                    'email' => 'eq.'.urlencode($email),
                 ]);
             }
 
@@ -1969,7 +1816,6 @@ $getParentData = function (Request $request) use ($makeParentQrToken) {
                         'student_id' => (int) ($student['id'] ?? 0),
                         'mobile_number' => $mobileNumber,
                         'relationship' => $relationship_meta,
-                        'email' => $email !== 'N/A' ? $email : null,
                     ]);
 
                     if ($createParentResponse->successful()) {
@@ -1997,7 +1843,7 @@ $getParentData = function (Request $request) use ($makeParentQrToken) {
         'relationship' => $relationship,
         'mobile' => $mobile,
         'fullName' => $fullName,
-        'email' => $email,
+        'username' => $username,
         'parent_id' => $parentId,
         'parent_qr_token' => $parentQrToken,
         'parent_qr_expires_at' => $parentQrExpiresAt,
@@ -2102,7 +1948,6 @@ Route::get('/parent/profile/edit', function (Request $request) use ($getParentDa
 Route::post('/parent/profile/update', function (Request $request) use ($getParentData) {
     $request->validate([
         'full_name' => 'required|string|max:255',
-        'email' => 'nullable|email|max:255',
         'mobile_number' => 'required|string|max:50|not_in:null,NULL',
         'relationship' => 'required|string|max:100',
     ]);
@@ -2120,7 +1965,6 @@ Route::post('/parent/profile/update', function (Request $request) use ($getParen
     }
 
     $fullName = $request->input('full_name');
-    $email = $request->input('email');
     $mobileNumber = PhoneNumber::normalize($request->input('mobile_number'));
     $relationship = $request->input('relationship');
 
@@ -2128,7 +1972,6 @@ Route::post('/parent/profile/update', function (Request $request) use ($getParen
         ...NameParts::split($fullName),
         'phone_number' => $mobileNumber,
         'relationship' => $relationship,
-        'email' => $email ?: null,
     ];
 
     Log::debug('parent.profile.update.request', $request->all());
@@ -2335,7 +2178,7 @@ Route::delete('/supabase/admin/parents/{id}', function ($id, Request $request) {
         return response()->json(['message' => 'Supabase not configured'], 500);
     }
 
-    // First fetch the parent row to find linked user email or id
+    // First fetch the parent row to find its linked Auth user ID.
     $headers = [
         'apikey' => $serviceKey,
         'Authorization' => 'Bearer '.$serviceKey,
@@ -2353,24 +2196,12 @@ Route::delete('/supabase/admin/parents/{id}', function ($id, Request $request) {
         return response()->json(['message' => 'Failed to delete parent', 'body' => $del->body()], $del->status());
     }
 
-    // If there is an auth user id or email in metadata, attempt to delete the auth user too
+    // Delete the linked Auth user when the profile provides its stable ID.
     $deleted = ['parent' => collect($del->json())->first() ?? null];
     $userId = $parent['auth_user_id'] ?? null;
-    $email = $parent['email'] ?? null;
     if (! empty($userId)) {
         $userDel = Http::withHeaders($headers)->delete("{$supabaseUrl}/auth/v1/admin/users/{$userId}");
         $deleted['auth_user'] = $userDel->ok() ? 'deleted' : 'failed';
-    } elseif (! empty($email)) {
-        // try to find by email
-        $usersResp = Http::withHeaders($headers)->get("{$supabaseUrl}/auth/v1/admin/users?email=eq.{$email}");
-        if ($usersResp->ok()) {
-            $users = is_array($usersResp->json()) ? $usersResp->json() : ($usersResp->json()['users'] ?? []);
-            $first = collect($users)->first();
-            if ($first && isset($first['id'])) {
-                $userDel = Http::withHeaders($headers)->delete("{$supabaseUrl}/auth/v1/admin/users/{$first['id']}");
-                $deleted['auth_user'] = $userDel->ok() ? 'deleted' : 'failed';
-            }
-        }
     }
 
     return response()->json($deleted);
@@ -2540,7 +2371,7 @@ $loadSmsStaff = static function (): array {
         'Authorization' => 'Bearer '.$serviceKey,
         'Accept' => 'application/json',
     ])->get("{$supabaseUrl}/rest/v1/staff", [
-        'select' => 'id,first_name,middle_name,last_name,phone_number,email,is_active',
+        'select' => 'id,auth_user_id,first_name,middle_name,last_name,phone_number,is_active',
         'order' => 'first_name.asc,last_name.asc',
         'limit' => 500,
     ]);
@@ -2759,7 +2590,7 @@ Route::get('/staff/profile', function (Request $request) {
             if ($userId) {
                 $resp = Http::withHeaders($headers)->get("{$supabaseUrl}/rest/v1/staff", [
                     'select' => '*',
-                    'id' => 'eq.'.$userId,
+                    'auth_user_id' => 'eq.'.$userId,
                     'limit' => 1,
                 ]);
 

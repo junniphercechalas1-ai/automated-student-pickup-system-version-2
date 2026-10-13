@@ -1,4 +1,5 @@
 import { bindPhoneSignupVerification } from './phoneSignupVerification.js';
+import './passwordVisibility.js';
 
 const loginForm = document.getElementById('loginForm');
 const registerForm = document.getElementById('registerForm');
@@ -9,10 +10,6 @@ const authTitle = document.getElementById('authTitle');
 const loginSection = document.getElementById('loginSection');
 const registerSection = document.getElementById('registerSection');
 const resetSection = document.getElementById('resetSection');
-const usernameSetupSection = document.getElementById('usernameSetupSection');
-const usernameSetupForm = document.getElementById('usernameSetupForm');
-const showUsernameSetup = document.getElementById('showUsernameSetup');
-const backFromUsernameSetup = document.getElementById('backFromUsernameSetup');
 const showRegister = document.getElementById('showRegister');
 const showReset = document.getElementById('showReset');
 const showLogin = document.getElementById('showLogin');
@@ -27,14 +24,6 @@ const getVerifiedSignupFlowId = bindPhoneSignupVerification({
     normalizePhoneNumber,
     showMessage,
 });
-const getVerifiedUsernameSetupFlowId = bindPhoneSignupVerification({
-    form: usernameSetupForm,
-    phoneInput: usernameSetupForm?.querySelector('[name="phone_number"]'),
-    accountType: 'parent',
-    normalizePhoneNumber,
-    showMessage,
-});
-
 function showMessage(message, isError = false) {
     if (!authFeedback) return;
 
@@ -336,45 +325,6 @@ async function handleReset(event) {
 
 const isDedicatedParentLogin = window.location.pathname.replace(/\/$/, '') === '/parent/login';
 
-async function handleUsernameSetup(event) {
-    event.preventDefault();
-    if (!usernameSetupForm) return;
-
-    const formData = new FormData(usernameSetupForm);
-    const phoneNumber = String(formData.get('phone_number') || '');
-    const phoneVerificationFlowId = getVerifiedUsernameSetupFlowId(phoneNumber);
-    if (!phoneVerificationFlowId) {
-        showMessage('Verify your registered mobile number before setting a username.', true);
-        return;
-    }
-
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    const response = await fetch('/supabase/username-activate', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': csrfToken || '',
-        },
-        body: JSON.stringify({
-            username: String(formData.get('username') || ''),
-            account_type: 'parent',
-            phone_verification_flow_id: phoneVerificationFlowId,
-        }),
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-        showMessage(payload.message || 'Unable to set your username.', true);
-        return;
-    }
-
-    usernameSetupForm.reset();
-    usernameSetupSection?.classList.add('hidden');
-    loginSection?.classList.remove('hidden');
-    const loginUsername = loginForm?.querySelector('[name="username"]');
-    if (loginUsername) loginUsername.value = String(formData.get('username') || '');
-    showMessage(payload.message || 'Username set. You can now sign in.', false);
-}
-
 if (loginForm && !isDedicatedParentLogin) {
     loginForm.addEventListener('submit', handleLogin);
 }
@@ -382,23 +332,6 @@ if (loginForm && !isDedicatedParentLogin) {
 if (registerForm) {
     registerForm.addEventListener('submit', handleRegister);
 }
-
-if (usernameSetupForm) {
-    usernameSetupForm.addEventListener('submit', handleUsernameSetup);
-}
-
-showUsernameSetup?.addEventListener('click', () => {
-    loginSection?.classList.add('hidden');
-    resetSection?.classList.add('hidden');
-    usernameSetupSection?.classList.remove('hidden');
-    showMessage('', false);
-});
-
-backFromUsernameSetup?.addEventListener('click', () => {
-    usernameSetupSection?.classList.add('hidden');
-    loginSection?.classList.remove('hidden');
-    showMessage('', false);
-});
 
 if (resetForm && !isDedicatedParentLogin) {
     resetForm.addEventListener('submit', handleReset);

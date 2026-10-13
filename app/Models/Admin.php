@@ -7,7 +7,6 @@ use Illuminate\Support\Facades\Hash;
 
 /**
  * @property string $id
- * @property string|null $email
  * @property string|null $phone_number
  * @property string|null $auth_user_id
  * @property string $password_hash
@@ -25,8 +24,6 @@ class Admin extends Model
     protected $keyType = 'string';
 
     protected $fillable = [
-        'username',
-        'email',
         'phone_number',
         'auth_user_id',
         'password_hash',

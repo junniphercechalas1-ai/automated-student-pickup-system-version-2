@@ -70,7 +70,7 @@
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-2">Search Staff</label>
                 <div class="flex">
-                    <input id="staffSearch" type="search" placeholder="Search by name, username, or email..." class="flex-1 px-4 py-2 border border-gray-300 rounded-l-lg focus:ring-blue-500 focus:border-blue-500">
+                    <input id="staffSearch" type="search" placeholder="Search by name or username..." class="flex-1 px-4 py-2 border border-gray-300 rounded-l-lg focus:ring-blue-500 focus:border-blue-500">
                     <button type="button" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-r-lg transition" onclick="filterStaffRows()">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
@@ -87,7 +87,7 @@
             <thead class="bg-gray-50">
                 <tr>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">FULL NAME</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">EMAIL</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">USERNAME</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">PHONE</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">STATUS</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">ACTIONS</th>
@@ -114,10 +114,6 @@
             <div>
                 <label for="staffEditName" class="block text-sm font-medium text-gray-700">Full Name</label>
                 <input id="staffEditName" type="text" required maxlength="255" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
-            </div>
-            <div>
-                <label for="staffEditEmail" class="block text-sm font-medium text-gray-700">Email</label>
-                <input id="staffEditEmail" type="email" required maxlength="255" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
             </div>
             <div>
                 <label for="staffEditPhone" class="block text-sm font-medium text-gray-700">Phone Number</label>
@@ -171,7 +167,7 @@
                 tbody.innerHTML += `
                     <tr>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${member.full_name || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${member.email || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${member.username || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${member.phone_number || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${member.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
@@ -201,7 +197,6 @@
 
         document.getElementById('staffEditId').value = member.id;
         document.getElementById('staffEditName').value = member.full_name ?? '';
-        document.getElementById('staffEditEmail').value = member.email ?? '';
         document.getElementById('staffEditPhone').value = member.phone_number ?? '';
         document.getElementById('staffEditModal').classList.remove('hidden');
         document.getElementById('staffEditName').focus();
@@ -225,7 +220,6 @@
                 },
                 body: JSON.stringify({
                     full_name: document.getElementById('staffEditName').value.trim(),
-                    email: document.getElementById('staffEditEmail').value.trim(),
                     phone_number: document.getElementById('staffEditPhone').value.trim() || null,
                 }),
             });

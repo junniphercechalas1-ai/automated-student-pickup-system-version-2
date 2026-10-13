@@ -124,7 +124,7 @@
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">LINKED STUDENT</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">RELATIONSHIP</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">MOBILE NUMBER</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">EMAIL</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">USERNAME</th>
                     <th class="sticky right-0 z-10 bg-gray-50 px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider shadow-lg">ACTIONS</th>
                 </tr>
             </thead>
@@ -162,9 +162,9 @@
             </div>
 
             <div>
-                <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
-                <input type="email" id="email"
-                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
+                <label for="parentUsername" class="block text-sm font-medium text-gray-700">Username</label>
+                <input type="text" id="parentUsername" readonly
+                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 shadow-sm">
             </div>
 
             <div>
@@ -263,7 +263,7 @@
                 const linkedStudentName = parent.linked_student_name ?? 'N/A';
                 const relationship = parent.relationship ?? 'N/A';
                 const mobileNumber = parent.phone_number ?? parent.mobile_number ?? 'N/A';
-                const email = parent.email ?? 'N/A';
+                const username = parent.username ?? 'N/A';
                 tbody.innerHTML += `
                     <tr>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${parentId}</td>
@@ -271,7 +271,7 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${linkedStudentName}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${relationship}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${mobileNumber}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${email}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${username}</td>
                         <td class="sticky right-0 z-[1] bg-white px-6 py-4 shadow-lg">
                             <div class="flex min-w-[110px] items-center gap-3">
                                 <button type="button" onclick="editParent('${recordId}')" class="text-blue-600 hover:text-blue-800">Edit</button>
@@ -313,7 +313,7 @@
         document.getElementById('parentModalTitle').textContent = 'Edit Parent';
         document.getElementById('fullName').value = parent.full_name ?? '';
         document.getElementById('mobileNumber').value = parent.phone_number ?? parent.mobile_number ?? '';
-        document.getElementById('email').value = parent.email ?? '';
+        document.getElementById('parentUsername').value = parent.username ?? '';
         document.getElementById('relationship').value = parent.relationship ?? '';
         document.getElementById('studentId').value = parent.student_id ?? '';
         document.getElementById('parentModal').classList.remove('hidden');
@@ -330,7 +330,6 @@
             full_name: document.getElementById('fullName').value,
             phone_number: document.getElementById('mobileNumber').value,
             relationship: document.getElementById('relationship').value,
-            email: document.getElementById('email').value || null,
             student_id: Number(document.getElementById('studentId').value)
         };
 

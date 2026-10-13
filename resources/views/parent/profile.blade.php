@@ -87,17 +87,16 @@
                         </div>
                     </div>
 
-                    <!-- Email Address -->
                     <div class="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 ring-1 ring-slate-200">
                         <div class="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-100 flex-shrink-0">
                             <svg class="w-6 h-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <rect x="2" y="4" width="20" height="16" rx="2"></rect>
-                                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
+                                <circle cx="12" cy="8" r="4"></circle>
+                                <path d="M6 20c0-3.314 2.686-6 6-6s6 2.686 6 6"></path>
                             </svg>
                         </div>
                         <div class="flex-1">
-                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-[0.05em]">Email Address</label>
-                            <p class="mt-1 text-base font-semibold text-slate-950">{{ $email ?? 'Not provided' }}</p>
+                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-[0.05em]">Username</label>
+                            <p class="mt-1 text-base font-semibold text-slate-950">{{ $username ?: 'Not provided' }}</p>
                         </div>
                     </div>
                 </div>
@@ -131,15 +130,30 @@
                             @csrf
                             <div>
                                 <label for="current_password" class="mb-1 block text-xs font-semibold uppercase tracking-[0.05em] text-slate-500">Current Password</label>
-                                <input id="current_password" name="current_password" type="password" required class="w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+                                <div class="relative">
+                                    <input id="current_password" name="current_password" type="password" required class="w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 pr-12 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+                                    <button type="button" data-password-toggle="current_password" aria-label="Show current password" aria-pressed="false" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                    </button>
+                                </div>
                             </div>
                             <div>
                                 <label for="password" class="mb-1 block text-xs font-semibold uppercase tracking-[0.05em] text-slate-500">New Password</label>
-                                <input id="password" name="password" type="password" required class="w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+                                <div class="relative">
+                                    <input id="password" name="password" type="password" required class="w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 pr-12 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+                                    <button type="button" data-password-toggle="password" aria-label="Show new password" aria-pressed="false" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                    </button>
+                                </div>
                             </div>
                             <div>
                                 <label for="password_confirmation" class="mb-1 block text-xs font-semibold uppercase tracking-[0.05em] text-slate-500">Confirm New Password</label>
-                                <input id="password_confirmation" name="password_confirmation" type="password" required class="w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+                                <div class="relative">
+                                    <input id="password_confirmation" name="password_confirmation" type="password" required class="w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 pr-12 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+                                    <button type="button" data-password-toggle="password_confirmation" aria-label="Show password confirmation" aria-pressed="false" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                    </button>
+                                </div>
                             </div>
                             <button type="submit" class="w-full rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Update Password</button>
                         </form>

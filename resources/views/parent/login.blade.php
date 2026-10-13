@@ -77,8 +77,6 @@
                                     </div>
                                     <button id="showForgotPassword" type="button" class="text-sm text-blue-600 hover:text-blue-700 font-semibold transition">Forgot password?</button>
                                 </div>
-                                <button id="showUsernameSetup" type="button" class="text-xs text-blue-600 hover:text-blue-700 font-semibold">Already registered? Set up your username</button>
-
                                 <!-- Login Button -->
                                 <button type="submit" class="w-full rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 active:bg-blue-800">Log In</button>
                             </form>
@@ -90,29 +88,6 @@
                                 </div>
                                 <p class="text-xs text-slate-600">Not a parent? <a href="/" class="font-semibold text-blue-600 hover:text-blue-700">Back to account selection</a></p>
                             </div>
-                        </div>
-
-                        <div id="usernameSetupSection" class="hidden space-y-3">
-                            <p class="rounded-2xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">For accounts registered before username sign-in, verify your registered number by SMS to choose a username. Your existing password stays the same.</p>
-                            <form id="usernameSetupForm" class="space-y-3">
-                                <div class="space-y-2">
-                                    <label for="setup_phone_number" class="block text-sm font-medium text-slate-700">Registered Mobile Number</label>
-                                    <input id="setup_phone_number" name="phone_number" type="tel" inputmode="tel" autocomplete="tel" required placeholder="Enter your registered number" class="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100" />
-                                    <button type="button" data-phone-otp-send class="text-sm font-semibold text-blue-600 hover:text-blue-700">Send verification code</button>
-                                    <div data-phone-otp-section class="hidden space-y-2">
-                                        <label for="setup_phone_otp" class="block text-sm font-medium text-slate-700">SMS verification code</label>
-                                        <input id="setup_phone_otp" data-phone-otp-input type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" class="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm tracking-[0.2em] outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100" />
-                                        <button type="button" data-phone-otp-verify class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Verify number</button>
-                                    </div>
-                                    <p data-phone-otp-status class="text-xs text-slate-500" role="status"></p>
-                                </div>
-                                <div class="space-y-2">
-                                    <label for="setup_username" class="block text-sm font-medium text-slate-700">Choose a Username</label>
-                                    <input id="setup_username" name="username" type="text" autocomplete="username" minlength="3" maxlength="30" pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,29}" required placeholder="3–30 letters, numbers, dots, underscores, or hyphens" class="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100" />
-                                </div>
-                                <button type="submit" class="w-full rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700">Set Username</button>
-                            </form>
-                            <button id="backFromUsernameSetup" type="button" class="w-full text-sm font-semibold text-blue-600">Back to login</button>
                         </div>
 
                         <!-- Password Reset Section -->
@@ -133,11 +108,21 @@
                                 </div>
                                 <div class="space-y-2">
                                     <label for="reset_new_password" class="block text-sm font-medium text-slate-700">New Password</label>
-                                    <input id="reset_new_password" name="password" type="password" minlength="8" required placeholder="At least 8 characters" class="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100" />
+                                    <div class="relative">
+                                        <input id="reset_new_password" name="password" type="password" minlength="8" required placeholder="At least 8 characters" class="w-full px-4 pr-12 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100" />
+                                        <button type="button" data-password-toggle="reset_new_password" aria-label="Show new password" aria-pressed="false" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="space-y-2">
                                     <label for="reset_password_confirmation" class="block text-sm font-medium text-slate-700">Confirm New Password</label>
-                                    <input id="reset_password_confirmation" name="password_confirmation" type="password" minlength="8" required placeholder="Enter the new password again" class="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100" />
+                                    <div class="relative">
+                                        <input id="reset_password_confirmation" name="password_confirmation" type="password" minlength="8" required placeholder="Enter the new password again" class="w-full px-4 pr-12 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100" />
+                                        <button type="button" data-password-toggle="reset_password_confirmation" aria-label="Show password confirmation" aria-pressed="false" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                        </button>
+                                    </div>
                                 </div>
                                 <button type="submit" class="w-full rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700">Verify Code &amp; Change Password</button>
                             </form>
@@ -219,7 +204,9 @@
                         const loginResponse = await fetch('/supabase/username-login', {
                             method: 'POST',
                             headers: {
+                                'Accept': 'application/json',
                                 'Content-Type': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
                                 'X-CSRF-TOKEN': csrfToken || '',
                             },
                             body: JSON.stringify({ username, password, account_type: 'parent' }),
@@ -254,15 +241,22 @@
                             return;
                         }
 
+                        const user = await sessionResp.json().catch(() => null);
+                        if (!user?.id || user?.user_metadata?.role !== 'parent') {
+                            authFeedback.textContent = 'Signed in, but the parent account details could not be verified. Please try again or contact the administrator.';
+                            authFeedback.className = 'rounded-2xl bg-rose-50 border border-rose-200 p-3 text-sm text-rose-700';
+                            return;
+                        }
+
                         if (remember) {
                             localStorage.setItem('parentRememberMe', 'true');
                             localStorage.setItem('parentUsername', username);
                         }
 
-                        window.location.href = '/picker';
+                        window.location.href = '/parent/dashboard';
                     } catch (err) {
                         console.error('Login error:', err);
-                        authFeedback.textContent = 'An unexpected error occurred.';
+                        authFeedback.textContent = 'Unable to reach the sign-in service. Check your connection and try again.';
                         authFeedback.className = 'rounded-2xl bg-rose-50 border border-rose-200 p-3 text-sm text-rose-700';
                     }
                 });

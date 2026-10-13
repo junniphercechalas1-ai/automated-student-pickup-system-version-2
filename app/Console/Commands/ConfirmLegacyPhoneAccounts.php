@@ -66,7 +66,7 @@ class ConfirmLegacyPhoneAccounts extends Command
 
         foreach ([
             ['parents', 'auth_user_id', ['phone_number', 'mobile_number']],
-            ['staff', 'id', ['phone_number']],
+            ['staff', 'auth_user_id', ['phone_number']],
         ] as [$table, $userIdField, $phoneFields]) {
             $rows = null;
             $phoneField = null;

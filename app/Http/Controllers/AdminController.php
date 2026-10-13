@@ -17,7 +17,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Str;
@@ -77,6 +76,63 @@ class AdminController extends Controller
                 ];
             })
             ->all();
+    }
+
+    private function authUsernamesById(array $userIds, string $context): array
+    {
+        $userIds = array_fill_keys(array_filter(array_map('strval', $userIds)), true);
+        if ($userIds === []) {
+            return [];
+        }
+
+        $supabaseUrl = $this->supabaseUrl();
+        if (! $supabaseUrl || ! $this->serviceKey()) {
+            return [];
+        }
+
+        $usernames = [];
+        $page = 1;
+        do {
+            $response = Http::withHeaders($this->getHeaders())
+                ->timeout(10)
+                ->get("{$supabaseUrl}/auth/v1/admin/users", [
+                    'page' => $page,
+                    'per_page' => 100,
+                ]);
+
+            if ($response->failed()) {
+                Log::warning("Unable to load Auth usernames for {$context}.", [
+                    'status' => $response->status(),
+                    'account_count' => count($userIds),
+                ]);
+
+                break;
+            }
+
+            $users = $response->json('users');
+            if (! is_array($users)) {
+                Log::warning("Supabase returned an unexpected Auth user list for {$context}.", [
+                    'status' => $response->status(),
+                ]);
+
+                break;
+            }
+
+            foreach ($users as $user) {
+                if (! is_array($user) || empty($user['id']) || ! isset($userIds[(string) $user['id']])) {
+                    continue;
+                }
+
+                $username = UsernameIdentity::normalize((string) data_get($user, 'user_metadata.username', ''));
+                if ($username !== '') {
+                    $usernames[(string) $user['id']] = $username;
+                }
+            }
+
+            $page++;
+        } while (count($users) === 100 && count($usernames) < count($userIds));
+
+        return $usernames;
     }
 
     private function sendAccountDecisionSms(SmsService $smsService, ?string $phoneNumber, string $role, bool $approved): bool
@@ -364,7 +420,7 @@ class AdminController extends Controller
                 'student_id' => (int) ($details['student_id'] ?? 0),
                 'phone_number' => (string) $registration->phone_number,
                 'relationship' => (string) ($details['relationship'] ?? ''),
-                'email' => null,
+
                 'is_active' => true,
                 'is_approved' => true,
             ], $existingProfileId);
@@ -372,7 +428,7 @@ class AdminController extends Controller
             $existingProfileResponse = Http::withHeaders($this->getHeaders())
                 ->get("{$supabaseUrl}/rest/v1/staff", [
                     'select' => 'id',
-                    'id' => 'eq.'.$authUserId,
+                    'auth_user_id' => 'eq.'.$authUserId,
                     'limit' => 1,
                 ]);
             if ($existingProfileResponse->failed()) {
@@ -389,8 +445,8 @@ class AdminController extends Controller
             $hasExistingProfile = is_array($existingProfile);
             $profilePayload = [
                 'id' => $authUserId,
+                'auth_user_id' => $authUserId,
                     ...NameParts::split((string) ($details['full_name'] ?? '')),
-                    'email' => null,
                     'phone_number' => (string) $registration->phone_number,
                     'is_approved' => true,
                     'is_active' => true,
@@ -398,7 +454,7 @@ class AdminController extends Controller
             $staffRequest = Http::withHeaders($this->getHeaders())
                 ->withHeaders(['Prefer' => 'return=representation']);
             $profileResponse = $hasExistingProfile
-                ? $staffRequest->patch("{$supabaseUrl}/rest/v1/staff?id=eq.".urlencode($authUserId), $profilePayload)
+                ? $staffRequest->patch("{$supabaseUrl}/rest/v1/staff?auth_user_id=eq.".urlencode($authUserId), $profilePayload)
                 : $staffRequest->post("{$supabaseUrl}/rest/v1/staff", $profilePayload);
         }
 
@@ -546,37 +602,22 @@ class AdminController extends Controller
             return back()->withErrors(['username' => 'Enter a valid username (3–30 letters, numbers, dots, underscores, or hyphens).'])->withInput();
         }
 
-        $admin = $this->findSupabaseAdminByUsername($username);
-
-        if (! $admin || ! $admin->is_active) {
-            Log::warning('Admin login rejected: username missing or account inactive.', [
-                'username_hash' => hash('sha256', $username),
-                'account_found' => $admin !== null,
-            ]);
-
+        $authUser = $this->authenticateSupabaseAdmin(
+            UsernameIdentity::authEmail($username),
+            $validated['password']
+        );
+        $authUserId = is_array($authUser) ? (string) ($authUser['id'] ?? '') : '';
+        $authUsername = UsernameIdentity::normalize((string) data_get($authUser, 'user_metadata.username', ''));
+        if ($authUserId === ''
+            || $authUsername !== $username
+            || data_get($authUser, 'user_metadata.role') !== 'admin') {
             return back()->withErrors(['username' => 'Invalid username or password.'])->withInput();
         }
 
-        if (empty($admin->auth_user_id)) {
-            Log::error('Admin login rejected because the profile is not linked to a Supabase Auth user.', [
-                'admin_id' => $admin->id,
-            ]);
-
-            return back()->withErrors(['username' => 'This administrator account is not linked to Supabase Auth. Contact the system administrator.'])->withInput();
-        }
-
-        $authEmail = $this->getSupabaseAdminAuthEmail((string) $admin->auth_user_id);
-        if (! $authEmail) {
-            return back()->withErrors(['username' => 'Unable to verify the linked Supabase Auth account. Contact the system administrator.'])->withInput();
-        }
-
-        $passwordIsValid = $this->authenticateSupabaseAdmin($authEmail, $validated['password'], (string) $admin->auth_user_id, 'email');
-
-        if (! $passwordIsValid) {
-            Log::warning('Admin login rejected: password verification failed.', [
-                'username_hash' => hash('sha256', $username),
-                'auth_user_id' => $admin->auth_user_id,
-                'supabase_auth_checked' => ! empty($admin->auth_user_id),
+        $admin = $this->findSupabaseAdminByAuthUserId($authUserId);
+        if (! $admin || ! $admin->is_active) {
+            Log::warning('Admin login rejected: Auth user has no active admin profile.', [
+                'auth_user_id' => $authUserId,
             ]);
 
             return back()->withErrors(['username' => 'Invalid username or password.'])->withInput();
@@ -1008,59 +1049,13 @@ class AdminController extends Controller
             $students = collect($studentsResponse->json())->keyBy('id');
 
             $parentsData = collect($parentsResponse->json());
-            $parentAuthIds = $parentsData
-                ->filter(fn (array $parent) => trim((string) ($parent['email'] ?? '')) === '' && ! empty($parent['auth_user_id']))
-                ->pluck('auth_user_id')
-                ->map(fn ($id) => (string) $id)
-                ->flip();
-            $authEmailsById = [];
+            $parentUsernamesById = $this->authUsernamesById(
+                $parentsData->pluck('auth_user_id')->all(),
+                'parent profiles'
+            );
 
-            if ($parentAuthIds->isNotEmpty()) {
-                $page = 1;
-                do {
-                    $authUsersResponse = Http::withHeaders($this->getHeaders())
-                        ->timeout(10)
-                        ->get("{$supabaseUrl}/auth/v1/admin/users", [
-                            'page' => $page,
-                            'per_page' => 100,
-                        ]);
-
-                    if ($authUsersResponse->failed()) {
-                        Log::warning('Unable to load Auth emails for parent profiles.', [
-                            'status' => $authUsersResponse->status(),
-                            'parent_count' => $parentAuthIds->count(),
-                        ]);
-                        break;
-                    }
-
-                    $authUsers = $authUsersResponse->json('users');
-                    if (! is_array($authUsers)) {
-                        Log::warning('Supabase returned an unexpected Auth user list for parent profiles.', [
-                            'status' => $authUsersResponse->status(),
-                        ]);
-                        break;
-                    }
-
-                    foreach ($authUsers as $authUser) {
-                        if (! is_array($authUser) || empty($authUser['id']) || ! $parentAuthIds->has((string) $authUser['id'])) {
-                            continue;
-                        }
-
-                        $authEmail = trim((string) ($authUser['email'] ?? ''));
-                        if ($authEmail !== '') {
-                            $authEmailsById[(string) $authUser['id']] = $authEmail;
-                        }
-                    }
-
-                    $page++;
-                } while (count($authUsers) === 100 && count($authEmailsById) < $parentAuthIds->count());
-            }
-
-            $parents = $parentsData->map(function (array $parent) use ($students, $authEmailsById): array {
-                $email = trim((string) ($parent['email'] ?? ''));
-                if ($email === '' && ! empty($parent['auth_user_id'])) {
-                    $parent['email'] = $authEmailsById[(string) $parent['auth_user_id']] ?? null;
-                }
+            $parents = $parentsData->map(function (array $parent) use ($students, $parentUsernamesById): array {
+                $parent['username'] = $parentUsernamesById[(string) ($parent['auth_user_id'] ?? '')] ?? null;
 
                 $phoneNumber = $parent['phone_number'] ?? $parent['mobile_number'] ?? null;
                 if (in_array(strtolower(trim((string) $phoneNumber)), ['null', 'undefined'], true)) {
@@ -1102,7 +1097,6 @@ class AdminController extends Controller
                         'username' => $details['username'] ?? null,
                         'phone_number' => $registration['phone_number'],
                         'mobile_number' => $registration['phone_number'],
-                        'email' => $details['email'] ?? null,
                         'is_approved' => false,
                         'is_active' => true,
                         'is_pending_registration' => true,
@@ -1146,7 +1140,6 @@ class AdminController extends Controller
             'phone_number' => 'required_without:mobile_number|string|max:20',
             'mobile_number' => 'nullable|string|max:20',
             'relationship' => 'required|string|max:50',
-            'email' => 'nullable|email|max:255',
             'student_id' => 'required|integer',
         ]);
 
@@ -1165,7 +1158,6 @@ class AdminController extends Controller
                 ...$nameParts,
                 'phone_number' => PhoneNumber::normalize($request->input('phone_number') ?? $request->input('mobile_number')),
                 'relationship' => $request->relationship,
-                'email' => $request->input('email'),
                 'student_id' => $request->student_id,
                 'is_active' => true,
                 'is_approved' => false,
@@ -1188,7 +1180,6 @@ class AdminController extends Controller
             'phone_number' => 'sometimes|required_without:mobile_number|string|max:20',
             'mobile_number' => 'sometimes|nullable|string|max:20',
             'relationship' => 'sometimes|string|max:50',
-            'email' => 'sometimes|nullable|email|max:255',
             'student_id' => 'sometimes|integer',
             'is_active' => 'sometimes|boolean',
             'is_approved' => 'sometimes|boolean',
@@ -1366,7 +1357,13 @@ class AdminController extends Controller
                 return response()->json(['error' => 'Failed to fetch staff'], 500);
             }
 
-            $staff = collect($response->json())->map(fn (array $member) => $this->decorateName($member));
+            $staffRecords = collect($response->json());
+            $staffUsernamesById = $this->authUsernamesById($staffRecords->pluck('auth_user_id')->all(), 'staff profiles');
+            $staff = $staffRecords->map(function (array $member) use ($staffUsernamesById): array {
+                $member['username'] = $staffUsernamesById[(string) ($member['auth_user_id'] ?? '')] ?? null;
+
+                return $this->decorateName($member);
+            });
             $pendingStaff = collect($this->pendingRegistrationRows('staff'))
                 ->map(function (array $registration): array {
                     $details = $registration['details'];
@@ -1375,7 +1372,6 @@ class AdminController extends Controller
                     return $this->decorateName([
                         'id' => $registration['id'],
                         ...$nameParts,
-                        'email' => null,
                         'username' => $details['username'] ?? null,
                         'phone_number' => $registration['phone_number'],
                         'is_approved' => false,
@@ -1397,7 +1393,6 @@ class AdminController extends Controller
     {
         $data = $request->validate([
             'full_name' => 'sometimes|required|string|max:255',
-            'email' => 'sometimes|required|email|max:255',
             'phone_number' => 'sometimes|nullable|string|max:50',
             'is_approved' => 'sometimes|boolean',
             'is_active' => 'sometimes|boolean',
@@ -1411,7 +1406,7 @@ class AdminController extends Controller
             }
 
             if (! (bool) $data['is_approved']) {
-                return $this->deleteDeclinedAccount('staff', $id, null, 'staff', $smsService);
+                return $this->deleteDeclinedAccount('staff', $id, 'auth_user_id', 'staff', $smsService);
             }
         }
 
@@ -1430,33 +1425,16 @@ class AdminController extends Controller
 
         $existingResponse = Http::withHeaders($this->getHeaders())
             ->get("{$supabaseUrl}/rest/v1/staff", [
-                'select' => 'email,is_approved,phone_number',
+                'select' => 'is_approved,phone_number',
                 'id' => 'eq.'.urlencode($id),
                 'limit' => 1,
             ]);
-        $existingStaff = $existingResponse->successful() ? collect($existingResponse->json())->first() : null;
-        if (array_key_exists('is_approved', $data) && ! is_array($existingStaff)) {
-            return response()->json(['error' => 'Unable to load the staff account before approval.'], 500);
+        if ($existingResponse->failed()) {
+            return response()->json(['error' => 'Unable to load the staff account before updating it.'], 500);
         }
-
-        $oldEmail = is_array($existingStaff) ? ($existingStaff['email'] ?? null) : null;
-        $emailChanged = array_key_exists('email', $data)
-            && strtolower(trim((string) $data['email'])) !== strtolower(trim((string) $oldEmail));
-
-        if ($emailChanged) {
-            if (! $oldEmail) {
-                return response()->json(['error' => 'Unable to verify the current staff email.'], 404);
-            }
-
-            $authResponse = Http::withHeaders($this->getHeaders())
-                ->put("{$supabaseUrl}/auth/v1/admin/users/".urlencode($id), [
-                    'email' => $data['email'],
-                    'email_confirm' => true,
-                ]);
-
-            if ($authResponse->failed()) {
-                return response()->json(['error' => 'Failed to update staff sign-in email.'], 500);
-            }
+        $existingStaff = collect($existingResponse->json())->first();
+        if (! is_array($existingStaff)) {
+            return response()->json(['error' => 'Staff account not found.'], 404);
         }
 
         /** @var \Illuminate\Http\Client\Response $response */
@@ -1464,40 +1442,7 @@ class AdminController extends Controller
             ->patch("{$supabaseUrl}/rest/v1/staff?id=eq.{$id}", $data);
 
         if ($response->failed()) {
-            if ($emailChanged) {
-                $rollbackResponse = Http::withHeaders($this->getHeaders())
-                    ->put("{$supabaseUrl}/auth/v1/admin/users/".urlencode($id), [
-                        'email' => $oldEmail,
-                        'email_confirm' => true,
-                    ]);
-
-                if ($rollbackResponse->failed()) {
-                    Log::error('Staff profile update failed and the Auth email could not be restored.', [
-                        'staff_id' => $id,
-                        'response' => $rollbackResponse->body(),
-                    ]);
-                }
-            }
-
             return response()->json(['error' => 'Failed to update staff'], 500);
-        }
-
-        if (array_key_exists('is_approved', $data) && is_array($existingStaff)
-            && (bool) $existingStaff['is_approved'] !== (bool) $data['is_approved']
-            && ! empty($existingStaff['email'])) {
-            $approved = (bool) $data['is_approved'];
-            $subject = $approved ? 'Your staff account was approved' : 'Your staff account was declined';
-            $message = $approved
-                ? "Your Orion Christian Academy staff account has been approved. You can now sign in at ".url('/staff/login').'.'
-                : 'Your Orion Christian Academy staff account was declined. Please contact an administrator if you believe this is incorrect.';
-
-            try {
-                Mail::raw($message, function ($mail) use ($existingStaff, $subject): void {
-                    $mail->to($existingStaff['email'])->subject($subject);
-                });
-            } catch (\Throwable $mailError) {
-                Log::warning('Staff approval email could not be sent: '.$mailError->getMessage());
-            }
         }
 
         if (array_key_exists('is_approved', $data) && is_array($existingStaff)
@@ -1523,7 +1468,7 @@ class AdminController extends Controller
 
         $staffResponse = Http::withHeaders($this->getHeaders())
             ->get("{$supabaseUrl}/rest/v1/staff", [
-                'select' => 'id,is_approved',
+                'select' => 'id,auth_user_id,is_approved',
                 'id' => 'eq.'.urlencode($id),
                 'limit' => 1,
             ]);
@@ -1544,8 +1489,13 @@ class AdminController extends Controller
             return response()->json(['error' => 'Failed to delete staff profile'], 500);
         }
 
+        $authUserId = (string) ($staff['auth_user_id'] ?? '');
+        if ($authUserId === '') {
+            return response()->json(['error' => 'Staff profile has no linked Supabase Auth user.'], 409);
+        }
+
         $deleteAuthResponse = Http::withHeaders($this->getHeaders())
-            ->delete("{$supabaseUrl}/auth/v1/admin/users/".urlencode($id));
+            ->delete("{$supabaseUrl}/auth/v1/admin/users/".urlencode($authUserId));
 
         if ($deleteAuthResponse->failed()) {
             Log::warning('Staff profile deleted but Auth user deletion failed: '.$deleteAuthResponse->body());
@@ -2012,8 +1962,11 @@ class AdminController extends Controller
     {
         $adminId = Session::get('admin_id');
         $admin = $adminId ? $this->findSupabaseAdmin($adminId) : null;
+        $username = $admin && $admin->auth_user_id
+            ? $this->getSupabaseAdminAuthUsername((string) $admin->auth_user_id)
+            : null;
 
-        return view('admin.profile', ['admin' => $admin]);
+        return view('admin.profile', ['admin' => $admin, 'username' => $username]);
     }
 
     public function deleteEntryRecord(string $source, int $id)
@@ -2121,18 +2074,17 @@ class AdminController extends Controller
             return back()->withErrors(['password' => 'This administrator account is not linked to Supabase Auth. Contact the system administrator.']);
         }
 
-        $authEmail = $this->getSupabaseAdminAuthEmail((string) $admin->auth_user_id);
-        if (! $authEmail) {
+        $authUsername = $this->getSupabaseAdminAuthUsername((string) $admin->auth_user_id);
+        if (! $authUsername) {
             return back()->withErrors(['password' => 'Unable to verify the linked Supabase Auth account. Contact the system administrator.']);
         }
 
-        $passwordIsValid = $this->authenticateSupabaseAdmin(
-            $authEmail,
+        $authUser = $this->authenticateSupabaseAdmin(
+            UsernameIdentity::authEmail($authUsername),
             $request->current_password,
-            (string) $admin->auth_user_id,
-            'email'
+            (string) $admin->auth_user_id
         );
-        if (! $passwordIsValid) {
+        if (! $authUser) {
             return back()->withErrors(['current_password' => 'Current password is incorrect.']);
         }
 
@@ -2158,13 +2110,13 @@ class AdminController extends Controller
         return back()->with('status', 'Password updated successfully.');
     }
 
-    private function authenticateSupabaseAdmin(string $identifier, string $password, string $expectedUserId, string $type): bool
+    private function authenticateSupabaseAdmin(string $authEmail, string $password, ?string $expectedUserId = null): ?array
     {
         $supabaseUrl = $this->supabaseUrl();
         $anonKey = env('VITE_SUPABASE_ANON_KEY') ?: env('SUPABASE_ANON_KEY') ?: getenv('VITE_SUPABASE_ANON_KEY') ?: getenv('SUPABASE_ANON_KEY');
 
         if (! $supabaseUrl || ! $anonKey) {
-            return false;
+            return null;
         }
 
         $response = Http::withHeaders([
@@ -2173,27 +2125,33 @@ class AdminController extends Controller
             'Content-Type' => 'application/json',
             'Accept' => 'application/json',
         ])->post("{$supabaseUrl}/auth/v1/token?grant_type=password", [
-            $type => $identifier,
+            'email' => $authEmail,
             'password' => $password,
         ]);
 
         if ($response->failed()) {
             Log::warning('Failed to authenticate admin with Supabase Auth: '.$response->body());
 
-            return false;
+            return null;
         }
 
         $user = $response->json('user');
         $actualUserId = is_array($user) && isset($user['id']) ? (string) $user['id'] : null;
 
-        return $actualUserId !== null && $actualUserId === $expectedUserId;
+        if (! is_array($user)
+            || ! $actualUserId
+            || ($expectedUserId !== null && $actualUserId !== $expectedUserId)) {
+            return null;
+        }
+
+        return $user;
     }
 
-    private function getSupabaseAdminAuthEmail(string $authUserId): ?string
+    private function getSupabaseAdminAuthUsername(string $authUserId): ?string
     {
         $supabaseUrl = $this->supabaseUrl();
         if (! $supabaseUrl || ! $this->serviceKey()) {
-            Log::error('Unable to resolve admin Auth email because Supabase is not configured.');
+            Log::error('Unable to resolve admin Auth username because Supabase is not configured.');
 
             return null;
         }
@@ -2211,17 +2169,19 @@ class AdminController extends Controller
         }
 
         $authUser = $response->json();
+        $username = UsernameIdentity::normalize((string) data_get($authUser, 'user_metadata.username', ''));
         if (! is_array($authUser)
             || (string) ($authUser['id'] ?? '') !== $authUserId
-            || ! filter_var($authUser['email'] ?? null, FILTER_VALIDATE_EMAIL)) {
-            Log::warning('Linked admin Auth user has no valid email address.', [
+            || ! UsernameIdentity::isValid($username)
+            || data_get($authUser, 'user_metadata.role') !== 'admin') {
+            Log::warning('Linked admin Auth user has no valid admin username metadata.', [
                 'auth_user_id' => $authUserId,
             ]);
 
             return null;
         }
 
-        return (string) $authUser['email'];
+        return $username;
     }
 
     private function findSupabaseAdmin(string $id): ?Admin
@@ -2248,10 +2208,10 @@ class AdminController extends Controller
         return null;
     }
 
-    private function findSupabaseAdminByUsername(string $username): ?Admin
+    private function findSupabaseAdminByAuthUserId(string $authUserId): ?Admin
     {
         return $this->findSupabaseAdminWithQuery([
-            'username' => 'eq.'.$username,
+            'auth_user_id' => 'eq.'.$authUserId,
         ]);
     }
 

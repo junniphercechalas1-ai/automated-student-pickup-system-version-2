@@ -7,15 +7,16 @@
         <title>Staff Login - Orion Christian Academy</title>
         @vite(['resources/css/app.css', 'resources/js/staff-auth.js'])
     </head>
-    <body class="min-h-dvh text-slate-950 flex items-start justify-center px-3 py-4 sm:items-center sm:px-4 sm:py-8" style="background-image: url('{{ asset('images/bg.png') }}'); background-size: cover; background-attachment: scroll; background-position: center;">
-        <div class="w-full max-w-sm rounded-2xl bg-white shadow-lg ring-1 ring-slate-200 overflow-hidden">
-            <div class="p-4 sm:p-6">
-                <div class="mb-3 text-center sm:mb-4">
-                    <img src="/images/orion-logo.png" alt="Orion Christian Academy" class="h-14 w-auto max-w-[160px] mx-auto object-contain sm:h-16 sm:max-w-[180px]">
+    <body class="min-h-screen text-slate-950 flex items-center justify-center py-6 px-4" style="background-image: url('{{ asset('images/bg.png') }}'); background-size: cover; background-attachment: fixed; background-position: center;">
+        <div class="max-w-sm mx-auto">
+            <div class="rounded-2xl bg-white shadow-lg ring-1 ring-slate-200 overflow-hidden">
+                <div class="p-5">
+                <div class="mb-4 text-center">
+                    <img src="/images/orion-logo.png" alt="Orion Christian Academy" class="h-16 w-auto max-w-[180px] mx-auto object-contain">
                 </div>
-                <div class="mb-3 text-center sm:mb-4">
+                <div class="mb-4 text-center">
                     <p class="text-sm font-semibold text-slate-900">Orion Christian Academy</p>
-                    <p class="mt-1 text-[0.65rem] font-medium uppercase tracking-[0.25em] text-slate-500 sm:text-xs sm:tracking-[0.35em]">Of The Philippines</p>
+                    <p class="mt-1 text-xs font-medium uppercase tracking-[0.35em] text-slate-500">Of The Philippines</p>
                 </div>
                 <div class="mb-1 flex justify-center">
                     <div class="w-14 h-12 rounded-full bg-blue-50 flex items-center justify-center">
@@ -25,32 +26,48 @@
                     </div>
                 </div>
 
-                <h1 class="text-xl font-bold text-slate-950 text-center sm:text-2xl">Staff Login</h1>
+                <h1 class="text-2xl font-bold text-slate-950 text-center">Staff Login</h1>
                 <p class="mt-1 text-sm text-slate-600 text-center">Scan and verify parent/guardian QR codes.</p>
-                <div id="authFeedback" class="mb-3 text-sm sm:mb-4" aria-live="polite"></div>
+                <div id="authFeedback" class="mb-4 text-sm" aria-live="polite"></div>
 
-                <section id="loginSection" class="space-y-4">
-                    <form id="loginForm" class="space-y-4">
-                        <div class="space-y-2 text-sm">
+                <section id="loginSection" class="space-y-3">
+                    <form id="loginForm" class="space-y-3">
+                        <div class="space-y-2">
                             <label for="username" class="block font-medium text-slate-700">Username</label>
-                            <input id="username" name="username" type="text" autocomplete="username" required placeholder="Enter your username" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 sm:text-sm" />
+                            <div class="relative">
+                                <svg class="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2m8-10a4 4 0 100-8 4 4 0 000 8z"/>
+                                </svg>
+                                <input id="username" name="username" type="text" autocomplete="username" required placeholder="Enter your username" class="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100" />
+                            </div>
                         </div>
-                        <div class="space-y-2 text-sm">
+                        <div class="space-y-2">
                             <label for="password" class="block font-medium text-slate-700">Password</label>
-                            <input id="password" name="password" type="password" required autocomplete="current-password" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 sm:text-sm" />
+                            <div class="relative">
+                                <svg class="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                                </svg>
+                                <input id="password" name="password" type="password" required autocomplete="current-password" placeholder="Enter your password" class="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-12 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100" />
+                                <button type="button" data-password-toggle="password" aria-label="Show password" aria-pressed="false" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                </button>
+                            </div>
                         </div>
-                        <div class="flex flex-wrap items-center justify-between gap-3 text-sm">
-                            <label class="flex min-h-11 items-center gap-2 text-slate-600"><input name="remember" type="checkbox" class="h-5 w-5 rounded border-slate-300 text-blue-600">Remember me</label>
-                            <button id="showForgotPassword" type="button" class="min-h-11 font-semibold text-blue-600 hover:text-blue-700">Forgot password?</button>
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center">
+                                <input id="remember" name="remember" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+                                <label for="remember" class="ml-2 text-sm text-slate-600">Remember me</label>
+                            </div>
+                            <button id="showForgotPassword" type="button" class="text-sm font-semibold text-blue-600 transition hover:text-blue-700">Forgot password?</button>
                         </div>
-                        <button type="submit" class="min-h-12 w-full rounded-lg bg-blue-600 px-6 py-3 text-base font-semibold text-white transition hover:bg-blue-700 sm:text-sm">Login</button>
+                        <button type="submit" class="w-full rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 active:bg-blue-800">Log In</button>
                     </form>
-                    <div class="flex min-h-11 items-center text-sm text-slate-500">
-                        <a href="/staff/register" class="font-semibold text-blue-600 hover:text-blue-700">New staff account?</a>
-                    </div>
-                    <div class="border-t border-slate-200 pt-3 sm:pt-4">
-                        <p class="text-xs text-slate-600 mb-3">Are you a parent/guardian?</p>
-                        <a href="/login" class="inline-flex min-h-11 items-center text-sm font-semibold text-blue-600 hover:text-blue-700">Go to parent login</a>
+                    <div class="border-t border-slate-200 pt-3">
+                        <div class="flex items-center justify-between gap-3 text-xs text-slate-600">
+                            <span>New staff member?</span>
+                            <a href="/staff/register" class="font-semibold text-blue-600 hover:text-blue-700">Create an account</a>
+                        </div>
+                        <p class="text-xs text-slate-600">Not a staff member? <a href="/" class="font-semibold text-blue-600 hover:text-blue-700">Back to account selection</a></p>
                     </div>
                 </section>
 
@@ -76,11 +93,21 @@
                     <form id="newPasswordForm" class="hidden space-y-3">
                         <div class="space-y-2 text-sm">
                             <label for="new_password" class="block font-medium text-slate-700">New Password</label>
-                            <input id="new_password" name="password" type="password" minlength="8" autocomplete="new-password" required class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100" />
+                            <div class="relative">
+                                <input id="new_password" name="password" type="password" minlength="8" autocomplete="new-password" required class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 pr-12 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100" />
+                                <button type="button" data-password-toggle="new_password" aria-label="Show new password" aria-pressed="false" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                </button>
+                            </div>
                         </div>
                         <div class="space-y-2 text-sm">
                             <label for="password_confirmation" class="block font-medium text-slate-700">Confirm New Password</label>
-                            <input id="password_confirmation" name="password_confirmation" type="password" minlength="8" autocomplete="new-password" required class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100" />
+                            <div class="relative">
+                                <input id="password_confirmation" name="password_confirmation" type="password" minlength="8" autocomplete="new-password" required class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 pr-12 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100" />
+                                <button type="button" data-password-toggle="password_confirmation" aria-label="Show password confirmation" aria-pressed="false" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064-2.943-9.542-7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                </button>
+                            </div>
                         </div>
                         <button type="submit" class="w-full rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700">Change Password</button>
                     </form>
@@ -88,8 +115,11 @@
                     <button id="backToLogin" type="button" class="w-full text-blue-600 hover:text-blue-700 font-semibold transition">Back to login</button>
                 </section>
 
-                <div class="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3.5">
-                    <p class="text-xs text-blue-800">Scan QR codes and manage entry verification at the gate.</p>
+                <div class="mt-4 flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3.5">
+                    <svg class="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-600" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    </svg>
+                    <p class="text-xs text-blue-800">Scan parent/guardian QR codes at the school gate to verify pickups.</p>
                 </div>
             </div>
         </div>

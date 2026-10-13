@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class EnsureUserHasRole
 {
@@ -41,73 +42,69 @@ class EnsureUserHasRole
         }
 
         $role = strtolower($user['user_metadata']['role'] ?? $user['role'] ?? 'parent');
-        $email = strtolower($user['email'] ?? '');
         $isApprovedStaffInSupabase = false;
         $isApprovedParentInSupabase = false;
-        $supabaseUrl = env('VITE_SUPABASE_URL');
-        $serviceKey = env('SUPABASE_SERVICE_KEY') ?: env('SUPABASE_SERVICE_ROLE_KEY');
+        $supabaseUrl = env('VITE_SUPABASE_URL') ?: env('SUPABASE_URL') ?: getenv('SUPABASE_URL');
+        $serviceKey = env('SUPABASE_SERVICE_KEY')
+            ?: env('SUPABASE_SERVICE_ROLE_KEY')
+            ?: getenv('SUPABASE_SERVICE_KEY')
+            ?: getenv('SUPABASE_SERVICE_ROLE_KEY');
 
         if ($supabaseUrl && $serviceKey) {
-            $staffQuery = [
-                'select' => 'id,email,is_approved,is_active',
-            ];
-
             if (! empty($user['id'])) {
-                $staffQuery['id'] = 'eq.'.(string) $user['id'];
-            }
+                $staffResponse = Http::withHeaders([
+                    'apikey' => $serviceKey,
+                    'Authorization' => 'Bearer '.$serviceKey,
+                    'Accept' => 'application/json',
+                ])->get("{$supabaseUrl}/rest/v1/staff", [
+                    'select' => 'auth_user_id,is_approved,is_active',
+                    'auth_user_id' => 'eq.'.(string) $user['id'],
+                ]);
 
-            if (empty($user['id']) && $email !== '') {
-                $staffQuery['email'] = 'eq.'.urlencode($email);
-            }
+                if ($staffResponse->ok()) {
+                    $staffRows = $staffResponse->json();
+                    $staffRow = collect($staffRows)->first();
 
-            $staffResponse = Http::withHeaders([
-                'apikey' => $serviceKey,
-                'Authorization' => 'Bearer '.$serviceKey,
-                'Accept' => 'application/json',
-            ])->get("{$supabaseUrl}/rest/v1/staff", $staffQuery);
-
-            if ($staffResponse->ok()) {
-                $staffRows = $staffResponse->json();
-                $staffRow = collect($staffRows)->first();
-
-                if (is_array($staffRow)
-                    && ($staffRow['is_approved'] ?? false) === true
-                    && ($staffRow['is_active'] ?? false) === true) {
-                    $isApprovedStaffInSupabase = true;
+                    if (is_array($staffRow)
+                        && ($staffRow['is_approved'] ?? false) === true
+                        && ($staffRow['is_active'] ?? false) === true) {
+                        $isApprovedStaffInSupabase = true;
+                    }
+                } else {
+                    Log::warning('Unable to verify staff authorization from the staff profile.', [
+                        'status' => $staffResponse->status(),
+                    ]);
                 }
             }
 
             if ($role === 'parent' || $expectedRole === 'parent') {
-                $parentQuery = [
-                    'select' => 'id,auth_user_id,email,is_approved,is_active',
-                ];
-
                 if (! empty($user['id'])) {
-                    $parentQuery['auth_user_id'] = 'eq.'.(string) $user['id'];
-                }
+                    $parentResponse = Http::withHeaders([
+                        'apikey' => $serviceKey,
+                        'Authorization' => 'Bearer '.$serviceKey,
+                        'Accept' => 'application/json',
+                    ])->get("{$supabaseUrl}/rest/v1/parents", [
+                        'select' => 'id,auth_user_id,is_approved,is_active',
+                        'auth_user_id' => 'eq.'.(string) $user['id'],
+                    ]);
 
-                if (empty($user['id']) && $email !== '') {
-                    $parentQuery['email'] = 'eq.'.urlencode($email);
-                }
+                    if ($parentResponse->ok()) {
+                        $parentRows = $parentResponse->json();
+                        $parentRow = collect($parentRows)->first();
 
-                $parentResponse = Http::withHeaders([
-                    'apikey' => $serviceKey,
-                    'Authorization' => 'Bearer '.$serviceKey,
-                    'Accept' => 'application/json',
-                ])->get("{$supabaseUrl}/rest/v1/parents", $parentQuery);
+                        if (is_array($parentRow)) {
+                            $parentIsApproved = array_key_exists('is_approved', $parentRow)
+                                ? (bool) ($parentRow['is_approved'] ?? false)
+                                : true;
 
-                if ($parentResponse->ok()) {
-                    $parentRows = $parentResponse->json();
-                    $parentRow = collect($parentRows)->first();
-
-                    if (is_array($parentRow)) {
-                        $parentIsApproved = array_key_exists('is_approved', $parentRow)
-                            ? (bool) ($parentRow['is_approved'] ?? false)
-                            : true;
-
-                        if ($parentIsApproved && ($parentRow['is_active'] ?? true) !== false) {
-                            $isApprovedParentInSupabase = true;
+                            if ($parentIsApproved && ($parentRow['is_active'] ?? true) !== false) {
+                                $isApprovedParentInSupabase = true;
+                            }
                         }
+                    } else {
+                        Log::warning('Unable to verify parent authorization from the parent profile.', [
+                            'status' => $parentResponse->status(),
+                        ]);
                     }
                 }
             }
@@ -117,7 +114,7 @@ class EnsureUserHasRole
 
         if ($expectedRole === 'admin') {
             if (! $isStaff) {
-                return redirect('/parent/dashboard');
+                return redirect($role === 'staff' ? '/staff/login' : '/parent/dashboard');
             }
         } elseif ($expectedRole === 'parent') {
             if ($isStaff) {
@@ -125,7 +122,7 @@ class EnsureUserHasRole
             }
 
             if (! $isApprovedParentInSupabase) {
-                return redirect('/parent/login');
+                return redirect($role === 'staff' ? '/staff/login' : '/parent/login');
             }
         }
 

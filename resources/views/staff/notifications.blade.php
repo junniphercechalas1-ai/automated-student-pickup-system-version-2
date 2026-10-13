@@ -28,7 +28,6 @@
                             <th class="w-12 px-4 py-3"><input id="selectAllStaff" type="checkbox" aria-label="Select all staff" class="h-4 w-4 rounded border-slate-300 text-amber-500"></th>
                             <th class="px-4 py-3">Staff member</th>
                             <th class="px-4 py-3">Phone</th>
-                            <th class="px-4 py-3">Email</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-200 bg-white">
@@ -37,10 +36,9 @@
                                 <td class="px-4 py-3"><input type="checkbox" name="staff_ids[]" value="{{ $staff['id'] }}" class="staff-checkbox h-4 w-4 rounded border-slate-300 text-amber-500"></td>
                                 <td class="px-4 py-3 font-medium text-slate-900">{{ $staff['full_name'] ?: 'Unnamed staff member' }}</td>
                                 <td class="px-4 py-3 text-slate-600">{{ $staff['sms_phone'] }}</td>
-                                <td class="px-4 py-3 text-slate-600">{{ $staff['email'] ?? '-' }}</td>
                             </tr>
                         @empty
-                            <tr><td colspan="4" class="px-4 py-6 text-center text-slate-500">No active staff members with phone numbers were found.</td></tr>
+                            <tr><td colspan="3" class="px-4 py-6 text-center text-slate-500">No active staff members with phone numbers were found.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

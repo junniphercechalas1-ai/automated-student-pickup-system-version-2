@@ -31,7 +31,6 @@ class StaffProfileSaveTest extends TestCase
                     'id' => 99,
                     'user_id' => 'auth-user-123',
                     'full_name' => 'Jane Doe',
-                    'email' => 'jane@example.com',
                     'phone_number' => '09170001111',
                     'is_approved' => true,
                     'photo_url' => '/storage/staff-profiles/avatar.jpg',
@@ -46,7 +45,6 @@ class StaffProfileSaveTest extends TestCase
         $response = $this->call('POST', '/supabase/staff-profile', [
             'user_id' => 'auth-user-123',
             'full_name' => 'Jane Doe',
-            'email' => 'jane@example.com',
             'phone_number' => '09170001111',
             'is_approved' => '1',
         ], [], [
@@ -59,7 +57,10 @@ class StaffProfileSaveTest extends TestCase
         Http::assertSent(function ($request) {
             return str_contains($request->url(), '/rest/v1/staff')
                 && ! empty($request->data()['photo_url'])
-                && str_contains($request->data()['photo_url'], 'staff-profiles');
+                && str_contains($request->data()['photo_url'], 'staff-profiles')
+                && $request->data()['auth_user_id'] === 'auth-user-123'
+                && str_contains($request->url(), 'on_conflict=auth_user_id')
+                && ! array_key_exists('email', $request->data());
         });
     }
 
@@ -72,7 +73,6 @@ class StaffProfileSaveTest extends TestCase
                     'id' => 99,
                     'user_id' => 'auth-user-456',
                     'full_name' => 'John Doe',
-                    'email' => 'john@example.com',
                     'phone_number' => '09999999999',
                     'is_approved' => true,
                 ], 200),
@@ -81,7 +81,6 @@ class StaffProfileSaveTest extends TestCase
         $response = $this->post('/supabase/staff-profile', [
             'user_id' => 'auth-user-456',
             'full_name' => 'John Doe',
-            'email' => 'john@example.com',
             'phone_number' => '09999999999',
             'is_approved' => '1',
             'photo_url' => '/storage/staff-profiles/avatar-fallback.jpg',

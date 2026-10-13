@@ -1,4 +1,5 @@
 import { bindPhoneSignupVerification } from './phoneSignupVerification.js';
+import './passwordVisibility.js';
 
 const loginForm = document.getElementById('loginForm');
 const registerForm = document.getElementById('registerForm');
