@@ -2198,6 +2198,7 @@ class AdminController extends Controller
         $phoneNumber = PhoneNumber::normalize($phoneNumber);
         $candidates = [$phoneNumber];
         if (str_starts_with($phoneNumber, '+639')) {
+            $candidates[] = substr($phoneNumber, 1);
             $candidates[] = '0'.substr($phoneNumber, 3);
         }
 

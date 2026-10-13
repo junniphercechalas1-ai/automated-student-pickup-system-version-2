@@ -221,4 +221,50 @@ class AdminSupabaseLoginTest extends TestCase
         Http::assertSent(fn ($request) => str_contains($request->url(), '/auth/v1/token')
             && ($request->data()['email'] ?? null) === 'admin@example.com');
     }
+
+    public function test_admin_login_finds_legacy_phone_stored_without_country_code_plus(): void
+    {
+        putenv('VITE_SUPABASE_URL=https://example.supabase.co');
+        putenv('VITE_SUPABASE_ANON_KEY=test-anon-key');
+        putenv('SUPABASE_SERVICE_KEY=test-service-key');
+        $_ENV['VITE_SUPABASE_URL'] = 'https://example.supabase.co';
+        $_ENV['VITE_SUPABASE_ANON_KEY'] = 'test-anon-key';
+        $_ENV['SUPABASE_SERVICE_KEY'] = 'test-service-key';
+        $_SERVER['VITE_SUPABASE_URL'] = 'https://example.supabase.co';
+        $_SERVER['VITE_SUPABASE_ANON_KEY'] = 'test-anon-key';
+        $_SERVER['SUPABASE_SERVICE_KEY'] = 'test-service-key';
+
+        Http::fake(function ($request) {
+            if (str_contains($request->url(), '/rest/v1/admin?')) {
+                if (str_contains($request->url(), 'phone_number=eq.639932636287')) {
+                    return Http::response([[
+                        'id' => 'admin-profile-id',
+                        'email' => 'admin@example.com',
+                        'phone_number' => '639932636287',
+                        'auth_user_id' => 'admin-auth-id',
+                        'password_hash' => '',
+                        'is_active' => true,
+                    ]], 200);
+                }
+
+                return Http::response([], 200);
+            }
+
+            if (str_contains($request->url(), '/auth/v1/token')) {
+                return Http::response([
+                    'user' => ['id' => 'admin-auth-id', 'phone' => '+639932636287'],
+                ], 200);
+            }
+
+            return Http::response([], 200);
+        });
+
+        $this->post('/admin/login', [
+            'phone' => '09932636287',
+            'password' => 'Secret123!',
+        ])->assertRedirect('/admin/dashboard');
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/rest/v1/admin?')
+            && str_contains($request->url(), 'phone_number=eq.639932636287'));
+    }
 }
