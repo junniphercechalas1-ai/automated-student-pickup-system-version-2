@@ -5,11 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\Admin;
 use App\Services\SmsService;
 use App\Support\NameParts;
+use App\Support\ParentStudentLinks;
 use App\Support\PendingRegistrationSchema;
 use App\Support\PhoneNumber;
 use App\Support\UsernameIdentity;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Crypt;
@@ -54,6 +56,48 @@ class AdminController extends Controller
         $record['full_name'] = NameParts::display($record);
 
         return $record;
+    }
+
+    private function syncParentStudentLinks(string $supabaseUrl, string $serviceKey, int|string $parentId, array $studentIds, ?string $relationship): ?Response
+    {
+        $existingResponse = ParentStudentLinks::forParent($supabaseUrl, $serviceKey, $parentId);
+        if ($existingResponse->failed()) {
+            return $existingResponse;
+        }
+
+        $existingLinks = collect($existingResponse->json());
+        $studentIds = collect($studentIds)
+            ->map(fn ($studentId): int => (int) $studentId)
+            ->filter(fn (int $studentId): bool => $studentId > 0)
+            ->unique()
+            ->values();
+
+        foreach ($studentIds as $studentId) {
+            $existingRelationship = $existingLinks
+                ->first(fn (array $link): bool => (int) ($link['student_id'] ?? 0) === $studentId)['relationship'] ?? null;
+            $response = ParentStudentLinks::upsert(
+                $supabaseUrl,
+                $serviceKey,
+                $parentId,
+                $studentId,
+                $relationship ?? $existingRelationship
+            );
+            if ($response->failed()) {
+                return $response;
+            }
+        }
+
+        $desired = $studentIds->map(fn (int $studentId): string => (string) $studentId);
+        foreach ($existingLinks->pluck('student_id') as $existingStudentId) {
+            if (! $desired->contains((string) $existingStudentId)) {
+                $response = ParentStudentLinks::delete($supabaseUrl, $serviceKey, $parentId, $existingStudentId);
+                if ($response->failed()) {
+                    return $response;
+                }
+            }
+        }
+
+        return null;
     }
 
     private function pendingRegistrationRows(string $role): array
@@ -417,7 +461,6 @@ class AdminController extends Controller
             $profileResponse = saveParentProfileToSupabase($supabaseUrl, $serviceKey, [
                 ...NameParts::split((string) ($details['full_name'] ?? '')),
                 'auth_user_id' => $authUserId,
-                'student_id' => (int) ($details['student_id'] ?? 0),
                 'phone_number' => (string) $registration->phone_number,
                 'relationship' => (string) ($details['relationship'] ?? ''),
 
@@ -496,6 +539,29 @@ class AdminController extends Controller
                         ? 'The existing sign-in account was updated, but its profile could not be saved. Retry approval.'
                         : 'The approved account profile could not be created. No Auth account was retained.'),
             ], 500);
+        }
+
+        if ($role === 'parent') {
+            $parentStudentIds = $details['student_ids'] ?? (isset($details['student_id']) ? [$details['student_id']] : []);
+            $linkError = $this->syncParentStudentLinks(
+                $supabaseUrl,
+                $serviceKey,
+                (int) $profile['id'],
+                is_array($parentStudentIds) ? $parentStudentIds : [],
+                (string) ($details['relationship'] ?? '')
+            );
+            if ($linkError) {
+                Log::error('Parent account was approved but its student associations could not be saved.', [
+                    'registration_id' => $id,
+                    'parent_id' => $profile['id'],
+                    'response' => $linkError->body(),
+                ]);
+                DB::table('pending_registrations')->where('id', $id)->update(['status' => 'pending', 'updated_at' => now()]);
+
+                return response()->json([
+                    'error' => 'The parent profile was saved, but one or more student links could not be saved. Retry approval.',
+                ], 502);
+            }
         }
 
         DB::table('pending_registrations')->where('id', $id)->delete();
@@ -862,14 +928,26 @@ class AdminController extends Controller
 
             $parentsResponse = Http::withHeaders($this->getHeaders())
                 ->get("{$supabaseUrl}/rest/v1/parents", [
-                    'select' => 'id,student_id,first_name,middle_name,last_name',
+                    'select' => 'id,first_name,middle_name,last_name',
                 ]);
-            $parents = $parentsResponse->successful()
-                ? collect($parentsResponse->json())->map(fn (array $parent) => $this->decorateName($parent))->all()
-                : [];
+            if ($parentsResponse->failed()) {
+                return response()->json(['error' => 'Failed to fetch parent records'], 500);
+            }
+            $parents = collect($parentsResponse->json())
+                ->map(fn (array $parent) => $this->decorateName($parent))
+                ->all();
+            $parentLinksResponse = ParentStudentLinks::forParents(
+                $supabaseUrl,
+                (string) $this->serviceKey(),
+                collect($parents)->pluck('id')->all()
+            );
+            if ($parentLinksResponse->failed()) {
+                return response()->json(['error' => 'Failed to fetch parent-student associations'], 500);
+            }
             $parentLookup = collect($parents)->keyBy(fn ($parent) => (string) ($parent['id'] ?? ''));
 
-            $parentIdsByStudent = collect($parents)->groupBy(fn (array $parent) => (string) ($parent['student_id'] ?? ''));
+            $parentIdsByStudent = collect($parentLinksResponse->json())
+                ->groupBy(fn (array $link) => (string) ($link['student_id'] ?? ''));
 
             $students = collect($students)->map(function (array $student) use ($parentLookup, $parentIdsByStudent): array {
                 $student = $this->decorateName($student);
@@ -877,7 +955,7 @@ class AdminController extends Controller
                     ->map(fn ($parentId) => (string) $parentId);
                 $parentIds = $parentIds->merge(
                     $parentIdsByStudent->get((string) ($student['id'] ?? ''), collect())
-                        ->pluck('id')
+                        ->pluck('parent_id')
                         ->map(fn ($parentId) => (string) $parentId)
                 )->unique()->values();
 
@@ -1049,12 +1127,28 @@ class AdminController extends Controller
             $students = collect($studentsResponse->json())->keyBy('id');
 
             $parentsData = collect($parentsResponse->json());
+            $parentLinksResponse = ParentStudentLinks::forParents(
+                $supabaseUrl,
+                (string) $this->serviceKey(),
+                $parentsData->pluck('id')->all()
+            );
+            if ($parentLinksResponse->failed()) {
+                Log::error('Unable to fetch parent-student associations while loading parent records.', [
+                    'status' => $parentLinksResponse->status(),
+                ]);
+
+                return response()->json([
+                    'message' => 'Unable to load parent-student associations from Supabase.',
+                ], 502);
+            }
+            $linksByParent = collect($parentLinksResponse->json())
+                ->groupBy(fn (array $link): string => (string) ($link['parent_id'] ?? ''));
             $parentUsernamesById = $this->authUsernamesById(
                 $parentsData->pluck('auth_user_id')->all(),
                 'parent profiles'
             );
 
-            $parents = $parentsData->map(function (array $parent) use ($students, $parentUsernamesById): array {
+            $parents = $parentsData->map(function (array $parent) use ($students, $linksByParent, $parentUsernamesById): array {
                 $parent['username'] = $parentUsernamesById[(string) ($parent['auth_user_id'] ?? '')] ?? null;
 
                 $phoneNumber = $parent['phone_number'] ?? $parent['mobile_number'] ?? null;
@@ -1063,21 +1157,44 @@ class AdminController extends Controller
                 }
                 $parent['mobile_number'] = $phoneNumber;
                 $parent['phone_number'] = $phoneNumber;
-                $student = $students->get($parent['student_id'] ?? null);
-                $parent['linked_student_name'] = is_array($student)
-                    ? trim(implode(' ', array_filter([
-                        $student['first_name'] ?? null,
-                        $student['middle_name'] ?? null,
-                        $student['last_name'] ?? null,
-                    ])))
-                    : null;
+                $linkedStudents = $linksByParent
+                    ->get((string) ($parent['id'] ?? ''), collect())
+                    ->map(function (array $link) use ($students): ?array {
+                        $student = $students->get($link['student_id'] ?? null);
+                        if (! is_array($student)) {
+                            return null;
+                        }
+
+                        return [
+                            'id' => (int) $student['id'],
+                            'name' => trim(implode(' ', array_filter([
+                                $student['first_name'] ?? null,
+                                $student['middle_name'] ?? null,
+                                $student['last_name'] ?? null,
+                            ]))),
+                        ];
+                    })
+                    ->filter()
+                    ->values();
+                $parent['student_ids'] = $linkedStudents->pluck('id')->all();
+                $parent['student_id'] = $parent['student_ids'][0] ?? null;
+                $parent['linked_student_name'] = $linkedStudents->pluck('name')->implode(', ') ?: null;
 
                 return $this->decorateName($parent);
             });
             $pendingParents = collect($this->pendingRegistrationRows('parent'))
                 ->map(function (array $registration) use ($students): array {
                     $details = $registration['details'];
-                    $student = $students->get($details['student_id'] ?? null);
+                    $studentIds = $details['student_ids'] ?? (isset($details['student_id']) ? [$details['student_id']] : []);
+                    $linkedStudentNames = collect(is_array($studentIds) ? $studentIds : [])
+                        ->map(fn ($studentId) => $students->get($studentId))
+                        ->filter(fn ($student) => is_array($student))
+                        ->map(fn (array $student): string => trim(implode(' ', array_filter([
+                            $student['first_name'] ?? null,
+                            $student['middle_name'] ?? null,
+                            $student['last_name'] ?? null,
+                        ]))))
+                        ->implode(', ');
                     $nameParts = NameParts::split((string) ($details['full_name'] ?? ''));
 
                     return $this->decorateName([
@@ -1085,14 +1202,9 @@ class AdminController extends Controller
                         'parent_id' => $registration['id'],
                         'auth_user_id' => null,
                         ...$nameParts,
-                        'student_id' => $details['student_id'] ?? null,
-                        'linked_student_name' => is_array($student)
-                            ? trim(implode(' ', array_filter([
-                                $student['first_name'] ?? null,
-                                $student['middle_name'] ?? null,
-                                $student['last_name'] ?? null,
-                            ])))
-                            : ($details['student_name'] ?? null),
+                        'student_ids' => is_array($studentIds) ? $studentIds : [],
+                        'student_id' => $studentIds[0] ?? $details['student_id'] ?? null,
+                        'linked_student_name' => $linkedStudentNames ?: ($details['student_name'] ?? null),
                         'relationship' => $details['relationship'] ?? null,
                         'username' => $details['username'] ?? null,
                         'phone_number' => $registration['phone_number'],
@@ -1140,7 +1252,9 @@ class AdminController extends Controller
             'phone_number' => 'required_without:mobile_number|string|max:20',
             'mobile_number' => 'nullable|string|max:20',
             'relationship' => 'required|string|max:50',
-            'student_id' => 'required|integer',
+            'student_ids' => 'required_without:student_id|array|min:1',
+            'student_ids.*' => 'integer',
+            'student_id' => 'required_without:student_ids|integer',
         ]);
 
         $supabaseUrl = $this->supabaseUrl();
@@ -1154,20 +1268,44 @@ class AdminController extends Controller
             : $request->only(['first_name', 'middle_name', 'last_name']);
 
         $response = Http::withHeaders($this->getHeaders())
+            ->withHeaders(['Prefer' => 'return=representation'])
             ->post("{$supabaseUrl}/rest/v1/parents", [
                 ...$nameParts,
                 'phone_number' => PhoneNumber::normalize($request->input('phone_number') ?? $request->input('mobile_number')),
                 'relationship' => $request->relationship,
-                'student_id' => $request->student_id,
                 'is_active' => true,
                 'is_approved' => false,
             ]);
 
         if ($response->failed()) {
-            return response()->json(['error' => 'Failed to create parent'], 500);
+            return response()->json(['error' => $response->json('message') ?? 'Failed to create parent'], 500);
         }
 
-        return response()->json($response->json(), 201);
+        $parent = collect($response->json())->first();
+        if (! is_array($parent) || empty($parent['id'])) {
+            return response()->json(['error' => 'Parent profile was created but Supabase returned no parent ID.'], 502);
+        }
+
+        $studentIds = $request->input('student_ids', [$request->input('student_id')]);
+        $linkError = $this->syncParentStudentLinks(
+            $supabaseUrl,
+            (string) $this->serviceKey(),
+            (int) $parent['id'],
+            is_array($studentIds) ? $studentIds : [],
+            (string) $request->input('relationship')
+        );
+        if ($linkError) {
+            Log::error('New parent profile student links could not be saved.', [
+                'parent_id' => $parent['id'],
+                'response' => $linkError->body(),
+            ]);
+
+            return response()->json(['error' => 'Parent profile was created, but its student links could not be saved.'], 502);
+        }
+
+        $parent['student_ids'] = collect($studentIds)->map(fn ($studentId): int => (int) $studentId)->unique()->values()->all();
+
+        return response()->json($parent, 201);
     }
 
     public function updateParent(Request $request, string $id, SmsService $smsService): JsonResponse
@@ -1180,6 +1318,8 @@ class AdminController extends Controller
             'phone_number' => 'sometimes|required_without:mobile_number|string|max:20',
             'mobile_number' => 'sometimes|nullable|string|max:20',
             'relationship' => 'sometimes|string|max:50',
+            'student_ids' => 'sometimes|array|min:1',
+            'student_ids.*' => 'integer',
             'student_id' => 'sometimes|integer',
             'is_active' => 'sometimes|boolean',
             'is_approved' => 'sometimes|boolean',
@@ -1234,12 +1374,41 @@ class AdminController extends Controller
             $data = array_merge(NameParts::split((string) $data['full_name']), collect($data)->except('full_name')->all());
         }
 
+        $studentIds = $data['student_ids'] ?? (isset($data['student_id']) ? [$data['student_id']] : null);
+        unset($data['student_ids'], $data['student_id']);
+
         /** @var \Illuminate\Http\Client\Response $response */
         $response = Http::withHeaders($this->getHeaders())
             ->patch("{$supabaseUrl}/rest/v1/parents?id=eq.{$id}", $data);
 
         if ($response->failed()) {
             return response()->json(['error' => 'Failed to update parent'], 500);
+        }
+
+        if (is_array($studentIds) || array_key_exists('relationship', $data)) {
+            if (! is_array($studentIds)) {
+                $currentLinksResponse = ParentStudentLinks::forParent($supabaseUrl, (string) $this->serviceKey(), $id);
+                if ($currentLinksResponse->failed()) {
+                    return response()->json(['error' => 'Parent details were updated, but their student relationships could not be loaded.'], 502);
+                }
+                $studentIds = collect($currentLinksResponse->json())->pluck('student_id')->all();
+            }
+
+            $linkError = $this->syncParentStudentLinks(
+                $supabaseUrl,
+                (string) $this->serviceKey(),
+                $id,
+                $studentIds,
+                isset($data['relationship']) ? (string) $data['relationship'] : null
+            );
+            if ($linkError) {
+                Log::error('Parent profile student links could not be updated.', [
+                    'parent_id' => $id,
+                    'response' => $linkError->body(),
+                ]);
+
+                return response()->json(['error' => 'Parent details were updated, but their student links could not be saved.'], 502);
+            }
         }
 
         if (array_key_exists('is_approved', $data)
@@ -1273,15 +1442,64 @@ class AdminController extends Controller
             return response()->json(['error' => 'Supabase configuration is missing'], 500);
         }
 
-        /** @var \Illuminate\Http\Client\Response $response */
-        $response = Http::withHeaders($this->getHeaders())
-            ->delete("{$supabaseUrl}/rest/v1/parents?id=eq.{$id}");
+        $profileResponse = Http::withHeaders($this->getHeaders())
+            ->get("{$supabaseUrl}/rest/v1/parents", [
+                'select' => 'id,auth_user_id',
+                'id' => 'eq.'.urlencode($id),
+                'limit' => 1,
+            ]);
 
-        if ($response->failed()) {
-            return response()->json(['error' => 'Failed to delete parent'], 500);
+        if ($profileResponse->failed()) {
+            Log::error('Unable to load parent profile before account deletion.', [
+                'parent_id' => $id,
+                'status' => $profileResponse->status(),
+            ]);
+
+            return response()->json(['error' => 'Unable to verify the linked parent account before deleting it.'], 502);
         }
 
-        return response()->json(['message' => 'Parent deleted successfully']);
+        $parent = collect($profileResponse->json())->first();
+        if (! is_array($parent)) {
+            return response()->json(['error' => 'Parent account not found.'], 404);
+        }
+
+        $authUserId = $parent['auth_user_id'] ?? null;
+        if (is_string($authUserId) && $authUserId !== '') {
+            $authDeleteResponse = Http::withHeaders($this->getHeaders())
+                ->delete("{$supabaseUrl}/auth/v1/admin/users/".urlencode($authUserId));
+
+            if ($authDeleteResponse->failed()) {
+                Log::error('Unable to delete parent Auth user.', [
+                    'parent_id' => $id,
+                    'auth_user_id' => $authUserId,
+                    'status' => $authDeleteResponse->status(),
+                ]);
+
+                return response()->json([
+                    'error' => 'The parent sign-in account could not be deleted. The parent profile was kept; please retry or contact an administrator.',
+                ], 502);
+            }
+        }
+
+        $profileDeleteResponse = Http::withHeaders($this->getHeaders())
+            ->delete("{$supabaseUrl}/rest/v1/parents?id=eq.".urlencode($id));
+
+        if ($profileDeleteResponse->failed()) {
+            Log::error('Parent Auth user was deleted but the parent profile could not be removed.', [
+                'parent_id' => $id,
+                'auth_user_id' => $authUserId,
+                'status' => $profileDeleteResponse->status(),
+            ]);
+
+            return response()->json([
+                'error' => 'The parent sign-in account was deleted, but the profile could not be removed. Contact an administrator.',
+            ], 502);
+        }
+
+        return response()->json([
+            'message' => 'Parent account and linked sign-in account deleted successfully.',
+            'auth_user_deleted' => is_string($authUserId) && $authUserId !== '',
+        ]);
     }
 
     private function getStaffStats(): array
@@ -1473,20 +1691,22 @@ class AdminController extends Controller
                 'limit' => 1,
             ]);
 
-        $staff = $staffResponse->successful() ? collect($staffResponse->json())->first() : null;
+        if ($staffResponse->failed()) {
+            Log::error('Unable to load staff profile before account deletion.', [
+                'staff_id' => $id,
+                'status' => $staffResponse->status(),
+            ]);
+
+            return response()->json(['error' => 'Unable to verify the linked staff account before deleting it.'], 502);
+        }
+
+        $staff = collect($staffResponse->json())->first();
         if (! is_array($staff)) {
             return response()->json(['error' => 'Staff account not found'], 404);
         }
 
         if (($staff['is_approved'] ?? false) !== true) {
             return response()->json(['error' => 'Only approved staff accounts can be deleted.'], 422);
-        }
-
-        $deleteProfileResponse = Http::withHeaders($this->getHeaders())
-            ->delete("{$supabaseUrl}/rest/v1/staff?id=eq.".urlencode($id));
-
-        if ($deleteProfileResponse->failed()) {
-            return response()->json(['error' => 'Failed to delete staff profile'], 500);
         }
 
         $authUserId = (string) ($staff['auth_user_id'] ?? '');
@@ -1498,11 +1718,30 @@ class AdminController extends Controller
             ->delete("{$supabaseUrl}/auth/v1/admin/users/".urlencode($authUserId));
 
         if ($deleteAuthResponse->failed()) {
-            Log::warning('Staff profile deleted but Auth user deletion failed: '.$deleteAuthResponse->body());
+            Log::error('Unable to delete staff Auth user.', [
+                'staff_id' => $id,
+                'auth_user_id' => $authUserId,
+                'status' => $deleteAuthResponse->status(),
+            ]);
 
             return response()->json([
-                'error' => 'Staff profile deleted, but the Supabase Auth account could not be deleted.',
-            ], 500);
+                'error' => 'The staff sign-in account could not be deleted. The staff profile was kept; please retry or contact an administrator.',
+            ], 502);
+        }
+
+        $deleteProfileResponse = Http::withHeaders($this->getHeaders())
+            ->delete("{$supabaseUrl}/rest/v1/staff?id=eq.".urlencode($id));
+
+        if ($deleteProfileResponse->failed()) {
+            Log::error('Staff Auth user was deleted but the staff profile could not be removed.', [
+                'staff_id' => $id,
+                'auth_user_id' => $authUserId,
+                'status' => $deleteProfileResponse->status(),
+            ]);
+
+            return response()->json([
+                'error' => 'The staff sign-in account was deleted, but the profile could not be removed. Contact an administrator.',
+            ], 502);
         }
 
         return response()->json(['message' => 'Staff account deleted successfully.']);

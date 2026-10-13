@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Services\SmsService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -22,44 +23,64 @@ class ParentProfileSyncTest extends TestCase
         $_SERVER['SUPABASE_SERVICE_KEY'] = 'test-service-key';
     }
 
-    public function test_parent_profile_is_saved_with_direct_student_id(): void
+    public function test_parent_profile_is_saved_and_students_are_linked_through_the_junction(): void
     {
-        Http::fake([
-            'https://example.supabase.co/rest/v1/parents' => Http::response([
+        Http::fake(function ($request) {
+            if (str_contains($request->url(), '/rest/v1/parents_students')) {
+                return Http::response([], 201);
+            }
+
+            return Http::response([
                 ['id' => 42, 'full_name' => 'Jane Doe', 'mobile_number' => '09170001111', 'relationship' => 'Mother'],
-            ], 201),
-        ]);
+            ], 201);
+        });
 
         $response = $this->postJson('/supabase/parent-profile', [
             'user_id' => 'auth-user-123',
             'full_name' => 'Jane Doe',
             'mobile_number' => '09170001111',
             'relationship' => 'Mother',
-            'student_id' => '13',
+            'student_ids' => [13, 14],
             'student_name' => 'Sam Doe',
             'student_class' => 'Grade 3',
             'student_qr_code' => 'QR-001',
         ]);
 
         $response->assertStatus(200);
-        Http::assertSentCount(1);
+        Http::assertSentCount(3);
 
         Http::assertSent(function ($request) {
             return str_contains($request->url(), '/rest/v1/parents')
+                && ! str_contains($request->url(), '/rest/v1/parents_students')
                 && $request->data()['first_name'] === 'Jane'
                 && $request->data()['last_name'] === 'Doe'
-                && $request->data()['student_id'] === 13
+                && ! array_key_exists('student_id', $request->data())
                 && $request->data()['phone_number'] === '+639170001111'
                 && $request->data()['relationship'] === 'Mother'
                 && ! array_key_exists('student_name', $request->data())
                 && ! array_key_exists('student_class', $request->data())
                 && ! array_key_exists('student_qr_code', $request->data());
         });
+        Http::assertSent(function ($request) {
+            if (! str_contains($request->url(), '/rest/v1/parents_students')) {
+                return false;
+            }
+
+            $link = $request->data()[0] ?? [];
+
+            return $link['parent_id'] === 42
+                && in_array($link['student_id'], [13, 14], true)
+                && $link['relationship'] === 'Mother';
+        });
     }
 
     public function test_parent_profile_update_does_not_read_or_write_a_profile_email(): void
     {
         Http::fake(function ($request) {
+            if (str_contains($request->url(), '/rest/v1/parents_students')) {
+                return Http::response([], 200);
+            }
+
             if (str_contains($request->url(), '/rest/v1/staff')) {
                 return Http::response([], 200);
             }
@@ -68,7 +89,7 @@ class ParentProfileSyncTest extends TestCase
                 return Http::response([['id' => 42]], 200);
             }
 
-            if (str_contains($request->url(), '/rest/v1/parents') && $request->method() === 'PATCH') {
+            if (str_contains($request->url(), '/rest/v1/parents') && ! str_contains($request->url(), '/rest/v1/parents_students') && $request->method() === 'PATCH') {
                 return Http::response([['id' => 42]], 200);
             }
 
@@ -115,6 +136,47 @@ class ParentProfileSyncTest extends TestCase
         $response->assertStatus(200)
             ->assertJsonPath('0.name', 'Sam Doe')
             ->assertJsonPath('1.class', 'Grade 4');
+    }
+
+    public function test_parent_qr_verification_authorizes_students_from_the_junction(): void
+    {
+        $encodedPayload = rtrim(strtr(base64_encode(json_encode([
+            'parent_id' => 42,
+            'student_id' => 14,
+            'expires_at' => now()->addMinutes(5)->toIso8601String(),
+        ], JSON_THROW_ON_ERROR)), '+/', '-_'), '=');
+        $token = $encodedPayload.'.'.hash_hmac('sha256', $encodedPayload, (string) env('APP_KEY'));
+
+        Http::fake(function ($request) {
+            if (str_contains($request->url(), '/rest/v1/parents_students')) {
+                return Http::response([
+                    ['parent_id' => 42, 'student_id' => 13],
+                    ['parent_id' => 42, 'student_id' => 14],
+                ], 200);
+            }
+            if (str_contains($request->url(), '/rest/v1/parents')) {
+                return Http::response([[
+                    'id' => 42,
+                    'first_name' => 'Jane',
+                    'last_name' => 'Doe',
+                    'relationship' => 'Mother',
+                ]], 200);
+            }
+            if (str_contains($request->url(), '/rest/v1/students')) {
+                return Http::response([[
+                    'id' => 14,
+                    'first_name' => 'Lia',
+                    'last_name' => 'Doe',
+                ]], 200);
+            }
+
+            return Http::response([], 200);
+        });
+
+        $this->getJson('/supabase/verify-parent-qr?token='.urlencode($token))
+            ->assertOk()
+            ->assertJsonPath('student.id', 14)
+            ->assertJsonPath('parent.id', 42);
     }
 
     public function test_parent_registration_is_staged_until_admin_approval(): void
@@ -170,7 +232,7 @@ class ParentProfileSyncTest extends TestCase
             'role' => 'parent',
             'phone_verification_flow_id' => $flowId,
             'relationship' => 'Mother',
-            'student_id' => '13',
+            'student_ids' => [13, 14],
             'student_name' => 'Sam Doe',
             'student_class' => 'Grade 3',
         ]);
@@ -183,6 +245,10 @@ class ParentProfileSyncTest extends TestCase
             'role' => 'parent',
             'status' => 'pending',
         ]);
+        $pendingDetails = json_decode((string) DB::table('pending_registrations')
+            ->where('phone_number', '+639170001111')
+            ->value('details'), true);
+        $this->assertSame([13, 14], $pendingDetails['student_ids']);
         Http::assertNotSent(fn ($request) => $request->method() !== 'GET');
     }
 

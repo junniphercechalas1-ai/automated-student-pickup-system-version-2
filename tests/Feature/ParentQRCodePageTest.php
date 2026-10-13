@@ -23,6 +23,24 @@ class ParentQRCodePageTest extends TestCase
                 return Http::response([], 200);
             }
 
+            if (str_contains($request->url(), '/rest/v1/parents_students')) {
+                return Http::response([[
+                    'parent_id' => 42,
+                    'student_id' => 13,
+                    'relationship' => 'Mother',
+                ]], 200);
+            }
+
+            if (str_contains($request->url(), '/rest/v1/students')) {
+                return Http::response([[
+                    'id' => 13,
+                    'first_name' => 'Juan',
+                    'last_name' => 'Dela Cruz',
+                    'grade_level' => 'Grade 5',
+                    'section' => 'Mabini',
+                ]], 200);
+            }
+
             if (str_contains($request->url(), '/rest/v1/parents')) {
                 return Http::response([[
                     'id' => 42,
@@ -48,7 +66,7 @@ class ParentQRCodePageTest extends TestCase
                     'full_name' => 'Maria Santos',
                     'student_name' => 'Juan Dela Cruz',
                     'student_class' => 'Grade 5 - Mabini',
-                    'student_id' => 'STU-001',
+                    'student_id' => '13',
                     'student_qr_code' => 'QR123456789',
                     'relationship' => 'Mother',
                     'mobile_number' => '+63 912 345 6789',
@@ -91,7 +109,7 @@ class ParentQRCodePageTest extends TestCase
         $response->assertSee('class="parent-qr-student-section"', false);
         $response->assertSee('Juan Dela Cruz');
         $response->assertSee('Grade 5 - Mabini');
-        $response->assertSee('Student ID: STU-001');
+        $response->assertSee('Student ID: 13');
         // Verify authorized parent section
         $response->assertSee('class="parent-qr-parent-section"', false);
         $response->assertSee('Authorized Parent');

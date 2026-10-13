@@ -107,10 +107,10 @@
                                 <input id="relationship" name="relationship" type="text" required class="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-amber-400 focus:ring-4 focus:ring-amber-100" />
                             </div>
                             <div class="space-y-2 text-sm">
-                                <label for="student_id" class="block font-medium text-slate-700">Student</label>
-                                <select id="student_id" name="student_id" required class="w-full rounded-3xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-amber-400 focus:ring-4 focus:ring-amber-100">
-                                    <option value="">Select your child</option>
+                                <label for="student_id" class="block font-medium text-slate-700">Students</label>
+                                <select id="student_id" name="student_ids[]" multiple required size="5" class="w-full rounded-3xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-amber-400 focus:ring-4 focus:ring-amber-100">
                                 </select>
+                                <p class="text-xs text-slate-500">Select one or more students. Use Ctrl (Windows) or Command (Mac) to select multiple.</p>
                             </div>
                         </div>
                         <button type="submit" class="w-full rounded-3xl bg-amber-500 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-400">Register</button>

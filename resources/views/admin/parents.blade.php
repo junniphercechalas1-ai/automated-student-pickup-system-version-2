@@ -179,9 +179,11 @@
             </div>
 
             <div>
-                <label for="studentId" class="block text-sm font-medium text-gray-700">Student ID</label>
-                <input type="number" id="studentId" required
+                <label for="studentIds" class="block text-sm font-medium text-gray-700">Linked Students</label>
+                <select id="studentIds" multiple required size="5"
                     class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
+                </select>
+                <p class="mt-1 text-xs text-gray-500">Select one or more students. Use Ctrl (Windows) or Command (Mac) to select multiple.</p>
             </div>
 
             <div class="flex justify-end space-x-3 mt-6">
@@ -209,12 +211,40 @@
     document.getElementById('parentSearch')?.addEventListener('input', filterParentRows);
 
     // Load parents on page load
-    document.addEventListener('DOMContentLoaded', loadParents);
+    document.addEventListener('DOMContentLoaded', () => {
+        loadStudentOptions();
+        loadParents();
+    });
 
     // Form submission
     document.getElementById('parentForm').addEventListener('submit', handleParentSubmit);
 
     const parentsById = new Map();
+    let studentOptionsPromise = null;
+
+    function loadStudentOptions() {
+        if (studentOptionsPromise) return studentOptionsPromise;
+        studentOptionsPromise = fetch('{{ route("admin.students") }}', {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+        }).then(async response => {
+            const payload = await response.json();
+            if (!response.ok) throw new Error(payload.message || payload.error || 'Failed to load students.');
+            const students = Array.isArray(payload) ? payload : (payload.students || []);
+            const select = document.getElementById('studentIds');
+            select.replaceChildren(...students.map(student => {
+                const option = document.createElement('option');
+                option.value = student.id;
+                option.textContent = `${student.full_name || student.name || `Student ${student.id}`} (${student.class || student.grade_level || 'No class'})`;
+                return option;
+            }));
+        }).catch(error => {
+            console.error('Error loading students:', error);
+            window.alert(error instanceof Error ? error.message : 'Unable to load students.');
+            studentOptionsPromise = null;
+            throw error;
+        });
+        return studentOptionsPromise;
+    }
 
     async function loadParents() {
         try {
@@ -301,13 +331,18 @@
         document.getElementById('parentModal').classList.remove('hidden');
     }
 
-    function editParent(id) {
+    async function editParent(id) {
         const parent = parentsById.get(String(id));
         if (!parent) {
             window.alert('Unable to load this parent account. Please refresh and try again.');
             return;
         }
 
+        try {
+            await loadStudentOptions();
+        } catch {
+            return;
+        }
         document.getElementById('parentForm').reset();
         document.getElementById('parentId').value = id;
         document.getElementById('parentModalTitle').textContent = 'Edit Parent';
@@ -315,7 +350,10 @@
         document.getElementById('mobileNumber').value = parent.phone_number ?? parent.mobile_number ?? '';
         document.getElementById('parentUsername').value = parent.username ?? '';
         document.getElementById('relationship').value = parent.relationship ?? '';
-        document.getElementById('studentId').value = parent.student_id ?? '';
+        const linkedStudentIds = (parent.student_ids || (parent.student_id ? [parent.student_id] : [])).map(String);
+        Array.from(document.getElementById('studentIds').options).forEach(option => {
+            option.selected = linkedStudentIds.includes(option.value);
+        });
         document.getElementById('parentModal').classList.remove('hidden');
     }
 
@@ -330,7 +368,7 @@
             full_name: document.getElementById('fullName').value,
             phone_number: document.getElementById('mobileNumber').value,
             relationship: document.getElementById('relationship').value,
-            student_id: Number(document.getElementById('studentId').value)
+            student_ids: Array.from(document.getElementById('studentIds').selectedOptions).map(option => Number(option.value))
         };
 
         try {
@@ -350,15 +388,16 @@
                 body: JSON.stringify(data)
             });
 
-            if (response.ok) {
-                closeParentModal();
-                loadParents();
-            } else {
-                alert('Error saving parent');
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(payload.error || payload.message || 'Error saving parent.');
             }
+
+            closeParentModal();
+            loadParents();
         } catch (error) {
             console.error('Error:', error);
-            alert('Error saving parent');
+            alert(error instanceof Error ? error.message : 'Error saving parent.');
         }
     }
 

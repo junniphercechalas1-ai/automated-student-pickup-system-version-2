@@ -101,14 +101,11 @@ Stores notification/SMS test and reminder details recorded by the application.
 
 Stores parent/guardian profile and contact details, including account
 approval and active state. Parent-to-student associations are represented by
-the `parents_students` junction table. The `student_id` column shown below also
-exists in the supplied schema snapshot, but it is not the canonical
-relationship for the many-to-many model.
+the `parents_students` junction table.
 
 | Field | Definition | Type / size | Null? | Default | Key / constraint / index |
 |---|---|---|---|---|---|
 | `id` | Unique parent profile identifier. | `bigint` (signed 64-bit integer) | No | — | Primary key |
-| `student_id` | Legacy/direct student reference retained in the supplied schema snapshot; the canonical parent-student associations belong in `parents_students`. | `bigint` (signed 64-bit integer) | Yes | — | Foreign key to `students(id)`; delete cascades to this parent row |
 | `first_name` | Parent's first name. | `text` (unbounded) | Yes | — | — |
 | `middle_name` | Parent's middle name. | `text` (unbounded) | Yes | — | — |
 | `last_name` | Parent's last name. | `text` (unbounded) | Yes | — | — |
@@ -261,12 +258,14 @@ including statistics for names, phone numbers, or SMS message content.
    fields/tables were not in the supplied schema export. Confirm whether they
    exist in the live `public` schema, are legacy code, or should be removed
    from the application.
-3. The intended relationship is many-to-many through `parents_students`.
-   However, the supplied schema also contains `parents.student_id`, and the
-   scanned Laravel code reads/writes that direct field; it did not show direct
-   use of `parents_students`. Refactor the application to read/write the
-   junction table and migrate any existing direct associations before
-   considering removal of `parents.student_id`.
+3. The parent/student relationship is many-to-many through `parents_students`.
+   Before removing the legacy `parents.student_id` column from a database,
+   run `database/supabase/2026_10_14_parent_student_junction.sql` immediately
+   before and again immediately after deploying the junction-table application
+   changes. This catches legacy links written during rollout. Then run
+   `database/supabase/2026_10_14_drop_legacy_parent_student_id.sql` to remove
+   the obsolete column; that script refuses to continue if any legacy link is
+   still missing from the junction.
 4. The `bigint` `id` fields in `parents`, `parents_students`, `pickups`, and
    `students` had no `column_default` in the supplied export. Check PostgreSQL
    identity metadata and test the insert flow to confirm how these IDs are

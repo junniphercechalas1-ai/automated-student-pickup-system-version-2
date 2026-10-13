@@ -36,6 +36,20 @@
         </div>
     </section>
 
+    @if (count($linked_students ?? []) > 1)
+        <section class="mx-auto mt-6 max-w-4xl rounded-xl bg-white p-4 shadow">
+            <label for="linkedStudentSelector" class="mb-2 block text-sm font-semibold text-slate-700">Choose a student for this QR code</label>
+            <select id="linkedStudentSelector" class="w-full rounded-lg border border-slate-300 px-3 py-2"
+                onchange="window.location.href = '?student_id=' + encodeURIComponent(this.value)">
+                @foreach ($linked_students as $linkedStudent)
+                    <option value="{{ $linkedStudent['id'] }}" @selected((string) $linkedStudent['id'] === (string) ($student['id'] ?? ''))>
+                        {{ $linkedStudent['name'] }} — {{ $linkedStudent['class'] }}
+                    </option>
+                @endforeach
+            </select>
+        </section>
+    @endif
+
     <!-- Student & Authorized Parent Card -->
     <section class="parent-qr-info-card">
         <div class="parent-qr-student-section">

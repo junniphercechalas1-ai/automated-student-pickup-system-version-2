@@ -171,17 +171,17 @@ async function loadStudentOptions() {
         const data = await response.json();
 
         if (!response.ok) {
-            studentSelect.innerHTML = '<option value="">Unable to load students</option>';
+            studentSelect.innerHTML = '<option disabled>Unable to load students</option>';
             console.error('Failed to load students:', data);
             return;
         }
 
         if (!data || data.length === 0) {
-            studentSelect.innerHTML = '<option value="">No students available</option>';
+            studentSelect.innerHTML = '<option disabled>No students available</option>';
             return;
         }
 
-        studentSelect.innerHTML = '<option value="">Select your child</option>';
+        studentSelect.replaceChildren();
         data.forEach((student) => {
             const option = document.createElement('option');
             option.value = student.id;
@@ -191,7 +191,7 @@ async function loadStudentOptions() {
             studentSelect.appendChild(option);
         });
     } catch (error) {
-        studentSelect.innerHTML = '<option value="">Unable to load students</option>';
+        studentSelect.innerHTML = '<option disabled>Unable to load students</option>';
         console.error('Failed to load students:', error);
     }
 }
@@ -208,18 +208,18 @@ async function handleRegister(event) {
     const accountRole = formData.get('role') || 'parent';
     const phoneVerificationFlowId = getVerifiedSignupFlowId(mobileNumber);
     const staffCode = formData.get('staff_code');
-    const studentId = formData.get('student_id');
-    const selectedOption = studentSelect?.selectedOptions?.[0];
-    const studentName = selectedOption?.dataset?.name || '';
-    const studentClass = selectedOption?.dataset?.studentClass || '';
+    const studentIds = formData.getAll('student_ids[]').map(value => String(value));
+    const selectedOptions = Array.from(studentSelect?.selectedOptions || []);
+    const studentName = selectedOptions.map(option => option.dataset.name || '').filter(Boolean).join(', ');
+    const studentClass = selectedOptions.map(option => option.dataset.studentClass || '').filter(Boolean).join(', ');
 
     if (password !== confirmPassword) {
         showMessage('Passwords do not match.', true);
         return;
     }
 
-    if (accountRole === 'parent' && !studentId) {
-        showMessage('Please select the student you are connected to.', true);
+    if (accountRole === 'parent' && studentIds.length === 0) {
+        showMessage('Please select at least one student you are connected to.', true);
         return;
     }
 
@@ -243,7 +243,8 @@ async function handleRegister(event) {
         phone_verification_flow_id: phoneVerificationFlowId,
         role: accountRole,
         relationship: String(formData.get('relationship') || ''),
-        student_id: String(studentId),
+        student_ids: studentIds,
+        student_id: studentIds[0] || null,
         student_name: String(studentName),
         student_class: String(studentClass),
     });

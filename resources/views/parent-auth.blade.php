@@ -120,10 +120,10 @@
                             <input id="otherRelationship" name="other_relationship" type="text" placeholder="Specify relationship" class="hidden w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-amber-400 focus:ring-4 focus:ring-amber-100" />
                         </div>
                         <div class="space-y-2 text-sm">
-                            <label for="student_id" class="block font-medium text-slate-700">Student</label>
-                            <select id="student_id" name="student_id" required class="w-full rounded-3xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-amber-400 focus:ring-4 focus:ring-amber-100">
-                                <option value="">Select your child</option>
+                            <label for="student_id" class="block font-medium text-slate-700">Students</label>
+                            <select id="student_id" name="student_ids[]" multiple required size="5" class="w-full rounded-3xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-amber-400 focus:ring-4 focus:ring-amber-100">
                             </select>
+                            <p class="text-xs text-slate-500">Select one or more students. Use Ctrl (Windows) or Command (Mac) to select multiple.</p>
                         </div>
                         <button type="submit" class="w-full rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700">Register</button>
                     </form>

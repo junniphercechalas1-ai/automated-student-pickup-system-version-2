@@ -29,6 +29,20 @@
         </div>
     </section>
 
+    @if (count($linked_students ?? []) > 1)
+        <section class="mb-6 rounded-xl bg-white p-4 shadow">
+            <label for="linkedStudentSelector" class="mb-2 block text-sm font-semibold text-slate-700">Choose a student</label>
+            <select id="linkedStudentSelector" class="w-full rounded-lg border border-slate-300 px-3 py-2"
+                onchange="window.location.href = '?student_id=' + encodeURIComponent(this.value)">
+                @foreach ($linked_students as $linkedStudent)
+                    <option value="{{ $linkedStudent['id'] }}" @selected((string) $linkedStudent['id'] === (string) ($student['id'] ?? ''))>
+                        {{ $linkedStudent['name'] }} — {{ $linkedStudent['class'] }}
+                    </option>
+                @endforeach
+            </select>
+        </section>
+    @endif
+
     @php
         $studentName = trim((string) ($student['name'] ?? 'Student'));
         $studentInitials = collect(preg_split('/\s+/', $studentName))

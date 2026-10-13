@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\EnsureAdminIsLoggedIn;
 use App\Services\SmsService;
 use App\Support\NameParts;
+use App\Support\ParentStudentLinks;
 use App\Support\PhoneNumberRegistrationGuard;
 use App\Support\UsernameIdentity;
 use Illuminate\Http\Request;
@@ -362,7 +363,7 @@ Route::get('/supabase/verify-parent-qr', function (Request $request) {
 
     $headers = ['apikey' => $serviceKey, 'Authorization' => 'Bearer '.$serviceKey, 'Accept' => 'application/json'];
     $parentResponse = Http::withHeaders($headers)->get("{$supabaseUrl}/rest/v1/parents", [
-        'select' => 'id,first_name,middle_name,last_name,phone_number,relationship,student_id',
+        'select' => 'id,first_name,middle_name,last_name,phone_number,relationship',
         'id' => 'eq.'.(int) $payload['parent_id'],
     ]);
     $studentResponse = Http::withHeaders($headers)->get("{$supabaseUrl}/rest/v1/students", [
@@ -380,7 +381,15 @@ Route::get('/supabase/verify-parent-qr', function (Request $request) {
         return response()->json(['message' => 'Parent or student not found.'], 404);
     }
 
-    if ((int) ($parent['student_id'] ?? 0) !== (int) $student['id']) {
+    $linksResponse = ParentStudentLinks::forParent($supabaseUrl, $serviceKey, (int) $parent['id']);
+    if ($linksResponse->failed()) {
+        return response()->json(['message' => 'Unable to verify the parent-student link.'], 500);
+    }
+
+    $isLinked = collect($linksResponse->json())->contains(
+        fn (array $link): bool => (int) ($link['student_id'] ?? 0) === (int) $student['id']
+    );
+    if (! $isLinked) {
         return response()->json(['message' => 'This student is not linked to the parent.'], 403);
     }
 
@@ -445,7 +454,9 @@ Route::post('/supabase/parent-profile', function (Request $request) {
         'last_name' => 'required_without:full_name|string|max:100',
         'mobile_number' => 'required|string',
         'relationship' => 'required|string',
-        'student_id' => 'required|string',
+        'student_id' => 'nullable|integer',
+        'student_ids' => 'nullable|array',
+        'student_ids.*' => 'integer',
         'student_name' => 'nullable|string',
         'student_class' => 'nullable|string',
     ]);
@@ -466,10 +477,19 @@ Route::post('/supabase/parent-profile', function (Request $request) {
         ? NameParts::split((string) $request->input('full_name'))
         : $request->only(['first_name', 'middle_name', 'last_name']);
 
+    $studentIds = collect($request->input('student_ids', $request->filled('student_id') ? [$request->input('student_id')] : []))
+        ->map(fn ($studentId): int => (int) $studentId)
+        ->filter(fn (int $studentId): bool => $studentId > 0)
+        ->unique()
+        ->values()
+        ->all();
+    if ($studentIds === []) {
+        return response()->json(['message' => 'Please select at least one student.'], 422);
+    }
+
     $parentPayload = [
         ...$nameParts,
         'auth_user_id' => $request->input('user_id'),
-        'student_id' => (int) $request->input('student_id'),
         'mobile_number' => PhoneNumber::normalize($request->input('mobile_number')),
         'relationship' => $request->input('relationship'),
         'is_active' => true,
@@ -495,8 +515,30 @@ Route::post('/supabase/parent-profile', function (Request $request) {
         ], 500);
     }
 
+    foreach ($studentIds as $studentId) {
+        $linkResponse = ParentStudentLinks::upsert(
+            $supabaseUrl,
+            $serviceKey,
+            (int) $parent['id'],
+            $studentId,
+            (string) $request->input('relationship')
+        );
+        if ($linkResponse->failed()) {
+            Log::error('Unable to save a parent-student association.', [
+                'parent_id' => $parent['id'],
+                'student_id' => $studentId,
+                'response' => $linkResponse->body(),
+            ]);
+
+            return response()->json([
+                'message' => 'Parent profile was saved, but one or more student links could not be saved. Please retry.',
+            ], 502);
+        }
+    }
+
     return response()->json([
         'parent' => $parent,
+        'student_ids' => $studentIds,
     ]);
 });
 
@@ -715,7 +757,9 @@ Route::post('/supabase/register-user', function (Request $request, PhoneNumberRe
         'email' => 'prohibited',
         'role' => 'required|string|in:parent,staff',
         'relationship' => 'nullable|string',
-        'student_id' => 'nullable|string',
+        'student_id' => 'nullable|integer',
+        'student_ids' => 'nullable|array|min:1',
+        'student_ids.*' => 'integer',
         'student_name' => 'nullable|string',
         'student_class' => 'nullable|string',
         'phone_verification_flow_id' => 'required|string|size:48',
@@ -735,7 +779,14 @@ Route::post('/supabase/register-user', function (Request $request, PhoneNumberRe
         return response()->json(['message' => 'Verify this mobile number before creating your account.'], 422);
     }
 
-    if ($role === 'parent' && ! $request->filled('student_id')) {
+    $studentIds = collect($request->input('student_ids', $request->filled('student_id') ? [$request->input('student_id')] : []))
+        ->map(fn ($studentId): int => (int) $studentId)
+        ->filter(fn (int $studentId): bool => $studentId > 0)
+        ->unique()
+        ->values()
+        ->all();
+
+    if ($role === 'parent' && $studentIds === []) {
         return response()->json(['message' => 'Please select a student before registering.'], 422);
     }
 
@@ -779,7 +830,8 @@ Route::post('/supabase/register-user', function (Request $request, PhoneNumberRe
     if ($role === 'parent') {
         $metadata = array_merge($metadata, [
             'relationship' => $request->input('relationship'),
-            'student_id' => $request->input('student_id'),
+            'student_ids' => $studentIds,
+            'student_id' => $studentIds[0] ?? null,
             'student_name' => $request->input('student_name'),
             'student_class' => $request->input('student_class'),
         ]);
@@ -799,7 +851,8 @@ Route::post('/supabase/register-user', function (Request $request, PhoneNumberRe
     $details = [
         ...$metadata,
         'relationship' => $role === 'parent' ? $request->input('relationship') : null,
-        'student_id' => $role === 'parent' ? (int) $request->input('student_id') : null,
+        'student_ids' => $role === 'parent' ? $studentIds : [],
+        'student_id' => $role === 'parent' ? ($studentIds[0] ?? null) : null,
     ];
     $registrationId = (string) Str::uuid();
 
@@ -1745,7 +1798,7 @@ $getParentData = function (Request $request) use ($makeParentQrToken) {
     $parentQrExpiresAt = null;
 
     if ($supabaseUrl && $serviceKey) {
-        // Match the profile using the stable mobile number from auth metadata.
+        // Match the profile using the stable Auth user ID, then fall back to phone for legacy rows.
         $parentName = trim((string) ($user['user_metadata']['full_name'] ?? $user['full_name'] ?? $fullName ?? ''));
         $parentMobile = trim((string) ($user['user_metadata']['mobile_number'] ?? $mobile));
         
@@ -1755,7 +1808,7 @@ $getParentData = function (Request $request) use ($makeParentQrToken) {
                 'Authorization' => 'Bearer '.$serviceKey,
                 'Accept' => 'application/json',
             ])->get("{$supabaseUrl}/rest/v1/parents", [
-                'select' => 'id,student_id,first_name,middle_name,last_name,phone_number,relationship',
+                'select' => 'id,first_name,middle_name,last_name,phone_number,relationship',
                 'auth_user_id' => 'eq.'.urlencode((string) ($user['id'] ?? '')),
             ]);
 
@@ -1765,9 +1818,13 @@ $getParentData = function (Request $request) use ($makeParentQrToken) {
                     'Authorization' => 'Bearer '.$serviceKey,
                     'Accept' => 'application/json',
                 ])->get("{$supabaseUrl}/rest/v1/parents", [
-                    'select' => 'id,student_id,first_name,middle_name,last_name,phone_number,relationship',
+                    'select' => 'id,first_name,middle_name,last_name,phone_number,relationship',
                     'phone_number' => 'eq.'.urlencode($parentMobile),
                 ]);
+            }
+
+            if ($parentResponse->failed()) {
+                abort(502, 'Unable to load your parent profile from Supabase.');
             }
 
             if ($parentResponse->ok()) {
@@ -1777,28 +1834,6 @@ $getParentData = function (Request $request) use ($makeParentQrToken) {
                     $parentId = $parentProfile['id'] ?? null;
                     $relationship = $parentProfile['relationship'] ?? $relationship;
                     $mobile = $parentProfile['phone_number'] ?? $parentProfile['mobile_number'] ?? $mobile;
-
-                    // Get the student assigned directly to this parent
-                    $studentResponse = Http::withHeaders([
-                        'apikey' => $serviceKey,
-                        'Authorization' => 'Bearer '.$serviceKey,
-                        'Accept' => 'application/json',
-                    ])->get("{$supabaseUrl}/rest/v1/students", [
-                        'id' => 'eq.'.((int) ($parentProfile['student_id'] ?? 0)),
-                        'select' => 'id,first_name,middle_name,last_name,grade_level,section',
-                    ]);
-
-                    if ($studentResponse->ok()) {
-                        $linkedStudent = collect($studentResponse->json())->first();
-
-                        if ($linkedStudent) {
-                            $student = [
-                                'id' => $linkedStudent['id'] ?? 'N/A',
-                                'name' => NameParts::display($linkedStudent) ?: 'Unassigned student',
-                                'class' => collect([$linkedStudent['grade_level'] ?? null, $linkedStudent['section'] ?? null])->filter()->implode(' - ') ?: 'N/A',
-                            ];
-                        }
-                    }
                 } else {
                     // Parent profile doesn't exist - create it from user metadata
                     $mobileNumber = trim((string) ($user['user_metadata']['mobile_number'] ?? $mobile ?? 'N/A'));
@@ -1813,7 +1848,6 @@ $getParentData = function (Request $request) use ($makeParentQrToken) {
                     ])->post("{$supabaseUrl}/rest/v1/parents", [
                         ...NameParts::split($parentName),
                         'auth_user_id' => $user['id'] ?? null,
-                        'student_id' => (int) ($student['id'] ?? 0),
                         'mobile_number' => $mobileNumber,
                         'relationship' => $relationship_meta,
                     ]);
@@ -1826,6 +1860,91 @@ $getParentData = function (Request $request) use ($makeParentQrToken) {
                             $mobile = $createdParent['phone_number'] ?? $createdParent['mobile_number'] ?? $mobile;
                         }
                     }
+                }
+
+                if ($parentId) {
+                    $linksResponse = ParentStudentLinks::forParent($supabaseUrl, $serviceKey, $parentId);
+                    if ($linksResponse->failed()) {
+                        abort(502, 'Unable to load your linked students from Supabase.');
+                    }
+                    $linkRows = collect($linksResponse->json())->all();
+
+                    if ($linkRows === []) {
+                        $metadataStudentIds = collect($user['user_metadata']['student_ids'] ?? [$user['user_metadata']['student_id'] ?? null])
+                            ->filter(fn ($id): bool => is_numeric($id) && (int) $id > 0)
+                            ->map(fn ($id): int => (int) $id)
+                            ->unique()
+                            ->values();
+                        foreach ($metadataStudentIds as $metadataStudentId) {
+                            $linkResponse = ParentStudentLinks::upsert(
+                                $supabaseUrl,
+                                $serviceKey,
+                                $parentId,
+                                $metadataStudentId,
+                                (string) $relationship
+                            );
+                            if ($linkResponse->failed()) {
+                                abort(502, 'Unable to restore a linked student association. Please contact the school administrator.');
+                            }
+                            $linkRows[] = [
+                                'parent_id' => $parentId,
+                                'student_id' => $metadataStudentId,
+                                'relationship' => $relationship,
+                            ];
+                        }
+                    }
+
+                    $studentIds = collect($linkRows)
+                        ->pluck('student_id')
+                        ->map(fn ($id): int => (int) $id)
+                        ->unique()
+                        ->values();
+                    $students = collect();
+                    if ($studentIds->isNotEmpty()) {
+                        $studentResponse = Http::withHeaders([
+                            'apikey' => $serviceKey,
+                            'Authorization' => 'Bearer '.$serviceKey,
+                            'Accept' => 'application/json',
+                        ])->get("{$supabaseUrl}/rest/v1/students", [
+                            'id' => 'in.('.$studentIds->implode(',').')',
+                            'select' => 'id,first_name,middle_name,last_name,grade_level,section',
+                            'order' => 'first_name.asc,last_name.asc',
+                        ]);
+                        if ($studentResponse->failed()) {
+                            abort(502, 'Unable to load linked student details from Supabase.');
+                        }
+                        $students = collect($studentResponse->json())->keyBy(fn (array $row) => (int) $row['id']);
+                    }
+
+                    $availableStudents = collect($linkRows)
+                        ->map(function (array $link) use ($students): ?array {
+                            $linkedStudent = $students->get((int) ($link['student_id'] ?? 0));
+                            if (! is_array($linkedStudent)) {
+                                return null;
+                            }
+
+                            return [
+                                'id' => (int) $linkedStudent['id'],
+                                'name' => NameParts::display($linkedStudent) ?: 'Unassigned student',
+                                'class' => collect([$linkedStudent['grade_level'] ?? null, $linkedStudent['section'] ?? null])->filter()->implode(' - ') ?: 'N/A',
+                                'relationship' => $link['relationship'] ?? $relationship,
+                            ];
+                        })
+                        ->filter()
+                        ->values()
+                        ->all();
+                    $requestedStudentId = $request->query('student_id');
+                    $selectedStudent = collect($availableStudents)->first(
+                        fn (array $linkedStudent): bool => (string) $linkedStudent['id'] === (string) $requestedStudentId
+                    );
+                    $selectedStudent ??= $availableStudents[0] ?? null;
+                    if ($selectedStudent) {
+                        $student = collect($selectedStudent)->except('relationship')->all();
+                        $relationship = $selectedStudent['relationship'] ?: $relationship;
+                    } else {
+                        $student = ['name' => 'Unassigned student', 'class' => 'N/A', 'id' => 'N/A'];
+                    }
+                    $linkedStudents = $availableStudents;
                 }
             }
         }
@@ -1840,6 +1959,7 @@ $getParentData = function (Request $request) use ($makeParentQrToken) {
     return [
         'user' => $user,
         'student' => $student,
+        'linked_students' => $linkedStudents ?? [],
         'relationship' => $relationship,
         'mobile' => $mobile,
         'fullName' => $fullName,
@@ -2025,6 +2145,34 @@ Route::post('/parent/profile/update', function (Request $request) use ($getParen
         return back()->withErrors(['error' => 'Unable to save parent profile.'])->withInput();
     }
 
+    $linksResponse = ParentStudentLinks::forParent($supabaseUrl, $serviceKey, $parentProfile['id']);
+    if ($linksResponse->failed()) {
+        Log::error('Unable to load parent-student associations while updating the parent profile.', [
+            'parent_id' => $parentProfile['id'],
+            'response' => $linksResponse->body(),
+        ]);
+
+        return back()->withErrors(['error' => 'Parent profile was saved, but its student relationships could not be updated.'])->withInput();
+    }
+    foreach ($linksResponse->json() as $link) {
+        $linkUpdateResponse = ParentStudentLinks::upsert(
+            $supabaseUrl,
+            $serviceKey,
+            $parentProfile['id'],
+            $link['student_id'],
+            $relationship
+        );
+        if ($linkUpdateResponse->failed()) {
+            Log::error('Unable to update a parent-student relationship label.', [
+                'parent_id' => $parentProfile['id'],
+                'student_id' => $link['student_id'] ?? null,
+                'response' => $linkUpdateResponse->body(),
+            ]);
+
+            return back()->withErrors(['error' => 'Parent profile was saved, but a student relationship could not be updated.'])->withInput();
+        }
+    }
+
     $userMetadataUpdate = [
         'user_metadata' => array_merge($user['user_metadata'] ?? [], [
             'full_name' => $fullName,
@@ -2185,26 +2333,55 @@ Route::delete('/supabase/admin/parents/{id}', function ($id, Request $request) {
         'Accept' => 'application/json',
     ];
     $search = Http::withHeaders($headers)->get("{$supabaseUrl}/rest/v1/parents?id=eq.{$id}&select=*");
-    if ($search->failed() || empty($search->json())) {
+    if ($search->failed()) {
+        Log::error('Unable to load parent profile before legacy admin deletion.', [
+            'parent_id' => $id,
+            'status' => $search->status(),
+        ]);
+
+        return response()->json(['message' => 'Unable to verify the linked parent account before deleting it.'], 502);
+    }
+
+    if (empty($search->json())) {
         return response()->json(['message' => 'Parent not found'], 404);
     }
     $parent = collect($search->json())->first();
 
-    // Delete parent row
-    $del = Http::withHeaders(array_merge($headers, ['Prefer' => 'return=representation']))->delete("{$supabaseUrl}/rest/v1/parents?id=eq.{$id}");
-    if ($del->failed()) {
-        return response()->json(['message' => 'Failed to delete parent', 'body' => $del->body()], $del->status());
-    }
-
-    // Delete the linked Auth user when the profile provides its stable ID.
-    $deleted = ['parent' => collect($del->json())->first() ?? null];
     $userId = $parent['auth_user_id'] ?? null;
     if (! empty($userId)) {
-        $userDel = Http::withHeaders($headers)->delete("{$supabaseUrl}/auth/v1/admin/users/{$userId}");
-        $deleted['auth_user'] = $userDel->ok() ? 'deleted' : 'failed';
+        $userDel = Http::withHeaders($headers)
+            ->delete("{$supabaseUrl}/auth/v1/admin/users/".urlencode((string) $userId));
+        if ($userDel->failed()) {
+            Log::error('Unable to delete parent Auth user through the legacy admin endpoint.', [
+                'parent_id' => $id,
+                'auth_user_id' => $userId,
+                'status' => $userDel->status(),
+            ]);
+
+            return response()->json([
+                'message' => 'The parent sign-in account could not be deleted. The parent profile was kept; please retry or contact an administrator.',
+            ], 502);
+        }
     }
 
-    return response()->json($deleted);
+    $del = Http::withHeaders($headers)
+        ->delete("{$supabaseUrl}/rest/v1/parents?id=eq.".urlencode((string) $id));
+    if ($del->failed()) {
+        Log::error('Parent Auth user was deleted but the profile could not be removed through the legacy admin endpoint.', [
+            'parent_id' => $id,
+            'auth_user_id' => $userId,
+            'status' => $del->status(),
+        ]);
+
+        return response()->json([
+            'message' => 'The parent sign-in account was deleted, but the profile could not be removed. Contact an administrator.',
+        ], 502);
+    }
+
+    return response()->json([
+        'parent' => collect($del->json())->first() ?? null,
+        'auth_user' => empty($userId) ? null : 'deleted',
+    ]);
 })->name('supabase.admin.parents.delete')->middleware(EnsureUserHasRole::class.':admin');
 
 Route::get('/supabase/admin', function () {
@@ -2346,10 +2523,25 @@ $loadSmsParents = static function (): array {
         return [];
     }
 
-    return collect($response->json())
-        ->map(function (array $parent): array {
+    $parents = collect($response->json());
+    $linksResponse = ParentStudentLinks::forParents($supabaseUrl, $serviceKey, $parents->pluck('id')->all());
+    if ($linksResponse->failed()) {
+        Log::error('Unable to load parent-student associations for SMS notifications.', [
+            'status' => $linksResponse->status(),
+        ]);
+
+        return [];
+    }
+    $linksByParent = collect($linksResponse->json())
+        ->groupBy(fn (array $link): string => (string) ($link['parent_id'] ?? ''));
+
+    return $parents
+        ->map(function (array $parent) use ($linksByParent): array {
             $parent['full_name'] = NameParts::display($parent);
             $parent['sms_phone'] = PhoneNumber::normalize($parent['phone_number'] ?? $parent['mobile_number'] ?? '');
+            $parent['student_id'] = $linksByParent
+                ->get((string) ($parent['id'] ?? ''), collect())
+                ->first()['student_id'] ?? null;
 
             return $parent;
         })
