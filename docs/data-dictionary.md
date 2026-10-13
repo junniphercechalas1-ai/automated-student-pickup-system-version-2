@@ -41,8 +41,9 @@ whether it is generated as an identity.
   identified in these tables.
 
 The Laravel application also has its own configured database and local
-tables (for example, support messages and pending registrations). Those are
-not part of this Supabase `public` schema dictionary.
+tables (for example, pending registrations). Legacy support-message tables
+may remain in the database, but the parent-to-admin messaging feature has
+been removed and those records are no longer accessible through the app.
 
 ## Supabase Auth identity (external schema)
 

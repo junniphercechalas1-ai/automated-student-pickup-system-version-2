@@ -6,17 +6,17 @@
     <div class="mb-8">
         <div class="flex flex-wrap items-center justify-between gap-4">
             <div>
-                <h1 class="text-3xl font-bold text-gray-900">Entry Records</h1>
-                <p class="text-gray-600 mt-1">View all successful QR code verifications (gate entries).</p>
+                <h1 class="text-3xl font-bold text-gray-900">Pickup Records</h1>
+                <p class="text-gray-600 mt-1">View all successful student pickups recorded at the school gate.</p>
             </div>
-            <form method="POST" action="{{ route('admin.entry-records.delete-all') }}" onsubmit="return confirm('Delete all entry records? This cannot be undone.');">
+            <form method="POST" action="{{ route('admin.entry-records.delete-all') }}" onsubmit="return confirm('Delete all pickup records? This cannot be undone.');">
                 @csrf
                 @method('DELETE')
                 <button type="submit" style="background-color: #dc2626; color: #ffffff;" class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-red-700 transition">
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-8 0h10"></path>
                     </svg>
-                    Delete All Records
+                    Delete All Pickup Records
                 </button>
             </form>
         </div>
@@ -30,11 +30,11 @@
 
     <!-- Statistics Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        <!-- Total Successful Entries -->
+        <!-- Total Successful Pickups -->
         <div class="bg-white rounded-lg shadow p-6 hover:shadow-md transition">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-sm font-medium text-gray-600">Total Successful Entries</p>
+                    <p class="text-sm font-medium text-gray-600">Total Successful Pickups</p>
                     <p class="text-3xl font-bold text-gray-900 mt-2">{{ $totalSuccessfulEntries ?? 0 }}</p>
                     <p class="text-xs text-gray-500 mt-1">This Month</p>
                 </div>
@@ -46,11 +46,11 @@
             </div>
         </div>
 
-        <!-- Today's Entries -->
+        <!-- Today's Pickups -->
         <div class="bg-white rounded-lg shadow p-6 hover:shadow-md transition">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-sm font-medium text-gray-600">Today's Entries</p>
+                    <p class="text-sm font-medium text-gray-600">Today's Pickups</p>
                     <p class="text-3xl font-bold text-gray-900 mt-2">{{ $todayEntries ?? 0 }}</p>
                     <p class="text-xs text-gray-500 mt-1">{{ \Carbon\Carbon::today()->format('F j, Y') }}</p>
                 </div>
@@ -62,11 +62,11 @@
             </div>
         </div>
 
-        <!-- Average Entry Time -->
+        <!-- Average Pickup Time -->
         <div class="bg-white rounded-lg shadow p-6 hover:shadow-md transition">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-sm font-medium text-gray-600">Average Entry Time</p>
+                    <p class="text-sm font-medium text-gray-600">Average Pickup Time</p>
                     <p class="text-3xl font-bold text-gray-900 mt-2">{{ $averageEntryTime ?? '0:00 AM' }}</p>
                     <p class="text-xs text-gray-500 mt-1">This Month</p>
                 </div>
@@ -136,7 +136,7 @@
         </div>
     </form>
 
-    <!-- Entry Records Table -->
+    <!-- Pickup Records Table -->
     <div class="bg-white rounded-lg shadow overflow-hidden">
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
@@ -175,7 +175,7 @@
                         </td>
                         <td class="px-6 py-4 text-sm text-gray-900">{{ $entry['verified_by'] ?? 'N/A' }}</td>
                         <td class="px-6 py-4 text-sm">
-                            <form method="POST" action="{{ route('admin.entry-records.delete', ['source' => $entry['source'] ?? 'entry-records', 'id' => $entry['id']]) }}" onsubmit="return confirm('Delete this entry record?');">
+                            <form method="POST" action="{{ route('admin.entry-records.delete', ['source' => $entry['source'] ?? 'entry-records', 'id' => $entry['id']]) }}" onsubmit="return confirm('Delete this pickup record?');">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="font-medium text-red-600 hover:text-red-800">Delete</button>
@@ -184,7 +184,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="7" class="px-6 py-8 text-center text-sm text-gray-500">No entry records found.</td>
+                        <td colspan="7" class="px-6 py-8 text-center text-sm text-gray-500">No pickup records found.</td>
                     </tr>
                 @endforelse
             </tbody>

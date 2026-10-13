@@ -2,6 +2,8 @@
 
 @section('content')
 <div class="min-h-screen bg-gray-50 px-6 lg:px-8 py-8">
+    @include('admin.partials.records-tabs')
+
     <!-- Page Header -->
     <div class="mb-8 flex justify-between items-start">
         <div>

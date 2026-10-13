@@ -93,27 +93,19 @@
                         </a>
                     </li>
                     <li>
-                        <a href="{{ route('admin.students') }}" class="sidebar-nav-item {{ request()->routeIs('admin.students*') ? 'active' : '' }}">
+                        <a href="{{ route('admin.students') }}" class="sidebar-nav-item {{ request()->routeIs('admin.students*', 'admin.parents*', 'admin.staff*') ? 'active' : '' }}">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 12H9m6 0a3 3 0 11-6 0 3 3 0 016 0z"></path>
                             </svg>
-                            <span>Students</span>
+                            <span>User and Student Records</span>
                         </a>
                     </li>
                     <li>
-                        <a href="{{ route('admin.parents') }}" class="sidebar-nav-item {{ request()->routeIs('admin.parents*') ? 'active' : '' }}">
+                        <a href="{{ route('admin.pending-registrations') }}" class="sidebar-nav-item {{ request()->routeIs('admin.pending-registrations') ? 'active' : '' }}">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.856-1.487M15 10a3 3 0 11-6 0 3 3 0 016 0zM4 20h16a2 2 0 002-2v-2a3 3 0 00-5.856-1.487M9 10a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l2.5 2.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                             </svg>
-                            <span>Parents / Guardians</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{{ route('admin.support-messages') }}" class="sidebar-nav-item {{ request()->routeIs('admin.support-messages*') ? 'active' : '' }}">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h6m-8 8 3.5-3H18a3 3 0 003-3V6a3 3 0 00-3-3H6a3 3 0 00-3 3v11a3 3 0 002 3z"></path>
-                            </svg>
-                            <span>Parent Messages</span>
+                            <span>Pending Registrations</span>
                         </a>
                     </li>
                     <li>
@@ -121,7 +113,7 @@
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                             </svg>
-                            <span>Entry Records</span>
+                            <span>Pickup Records</span>
                         </a>
                     </li>
                     <li>
@@ -130,14 +122,6 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
                             </svg>
                             <span>SMS Notifications</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{{ route('admin.staff') }}" class="sidebar-nav-item {{ request()->routeIs('admin.staff*') ? 'active' : '' }}">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
-                            </svg>
-                            <span>Staff Accounts</span>
                         </a>
                     </li>
                     <li>

@@ -2,6 +2,8 @@
 
 @section('content')
 <div class="min-h-screen bg-gray-50 px-6 lg:px-8 py-8">
+    @include('admin.partials.records-tabs')
+
     <!-- Page Header -->
     <div class="mb-8 flex justify-between items-start">
         <div>
@@ -45,7 +47,7 @@
         </div>
 
         <!-- Pending Accounts -->
-        <div class="bg-white rounded-lg shadow p-6 hover:shadow-md transition">
+        <a href="{{ route('admin.pending-registrations') }}" class="block bg-white rounded-lg shadow p-6 hover:shadow-md hover:ring-2 hover:ring-yellow-300 transition">
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm font-medium text-gray-600">Pending Accounts</p>
@@ -58,7 +60,7 @@
                     </svg>
                 </div>
             </div>
-        </div>
+        </a>
 
         <!-- Linked to Students -->
         <div class="bg-white rounded-lg shadow p-6 hover:shadow-md transition">
@@ -123,7 +125,7 @@
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">RELATIONSHIP</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">MOBILE NUMBER</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">EMAIL</th>
-                    <th class="sticky right-0 z-10 bg-gray-50 px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider shadow-lg">APPROVAL / ACTIONS</th>
+                    <th class="sticky right-0 z-10 bg-gray-50 px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider shadow-lg">ACTIONS</th>
                 </tr>
             </thead>
             <tbody id="parentsTable" class="bg-white divide-y divide-gray-200">
@@ -229,12 +231,13 @@
             }
 
             const payload = await response.json();
-            const parents = Array.isArray(payload) ? payload : (payload.parents || []);
+            const allParents = Array.isArray(payload) ? payload : (payload.parents || []);
+            const parents = allParents.filter(parent => parent.is_approved === true && parent.is_active !== false);
             const counts = payload.counts || {
-                total_parents: parents.length,
-                approved_parents: parents.filter(parent => parent.is_approved === true).length,
-                pending_parents: parents.filter(parent => parent.is_approved !== true && parent.is_active !== false).length,
-                linked_to_students: parents.filter(parent => (parent.linked_student_name ?? 'N/A') !== 'N/A').length,
+                total_parents: allParents.length,
+                approved_parents: parents.length,
+                pending_parents: allParents.filter(parent => parent.is_approved !== true && parent.is_active !== false).length,
+                linked_to_students: allParents.filter(parent => (parent.linked_student_name ?? 'N/A') !== 'N/A').length,
             };
 
             document.getElementById('totalParentsCount').textContent = counts.total_parents ?? 0;
@@ -261,13 +264,6 @@
                 const relationship = parent.relationship ?? 'N/A';
                 const mobileNumber = parent.phone_number ?? parent.mobile_number ?? 'N/A';
                 const email = parent.email ?? 'N/A';
-                const isApproved = parent.is_approved === true;
-                const isDeclined = !isApproved && parent.is_active === false;
-                const approvalLabel = isApproved ? 'Approved' : (isDeclined ? 'Declined' : 'Pending');
-                const approvalClass = isApproved
-                    ? 'bg-green-100 text-green-800'
-                    : (isDeclined ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800');
-
                 tbody.innerHTML += `
                     <tr>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${parentId}</td>
@@ -277,14 +273,9 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${mobileNumber}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${email}</td>
                         <td class="sticky right-0 z-[1] bg-white px-6 py-4 shadow-lg">
-                            <div class="flex min-w-[110px] flex-col items-start gap-2">
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${approvalClass}">
-                                ${approvalLabel}
-                            </span>
-                            ${isApproved || isDeclined
-                                ? `<button type="button" onclick="deleteParent('${recordId}')" class="rounded bg-red-100 px-3 py-1 text-xs font-semibold text-red-800 hover:bg-red-200">Delete</button>`
-                                : `<button type="button" onclick="updateParentApproval('${recordId}', true)" class="rounded bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-200">Approve</button>
-                                   <button type="button" onclick="updateParentApproval('${recordId}', false)" class="rounded bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-800 hover:bg-rose-200">Decline</button>`}
+                            <div class="flex min-w-[110px] items-center gap-3">
+                                <button type="button" onclick="editParent('${recordId}')" class="text-blue-600 hover:text-blue-800">Edit</button>
+                                <button type="button" onclick="deleteParent('${recordId}')" class="text-rose-600 hover:text-rose-800">Delete</button>
                             </div>
                         </td>
                     </tr>
@@ -369,43 +360,6 @@
         } catch (error) {
             console.error('Error:', error);
             alert('Error saving parent');
-        }
-    }
-
-    async function updateParentApproval(id, approved) {
-        const action = approved ? 'approve' : 'decline';
-        if (!window.confirm(`Are you sure you want to ${action} this parent account?`)) {
-            return;
-        }
-
-        try {
-            const response = await fetch(`/admin/parents/${encodeURIComponent(id)}`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({
-                    is_approved: approved,
-                    is_active: approved,
-                })
-            });
-
-            if (!response.ok) {
-                const payload = await response.json().catch(() => ({}));
-                throw new Error(payload.error || `Unable to ${action} parent account.`);
-            }
-
-            const payload = await response.json().catch(() => ({}));
-            if (payload.notification_sent === false) {
-                window.alert(payload.message || 'The account decision was saved, but the SMS notification could not be sent.');
-            }
-
-            await loadParents();
-        } catch (error) {
-            console.error(`Error trying to ${action} parent account:`, error);
-            window.alert(error.message);
         }
     }
 

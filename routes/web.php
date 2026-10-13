@@ -121,29 +121,20 @@ Route::prefix('admin')->group(function () {
         Route::patch('/parents/{id}', [AdminController::class, 'updateParent'])->name('admin.parents.update');
         Route::delete('/parents/{id}', [AdminController::class, 'deleteParent'])->name('admin.parents.delete');
 
-        // Parent account support messages
-        Route::get('/support-messages', [AdminController::class, 'getSupportMessages'])
-            ->middleware(\App\Http\Middleware\EnsureSupportMessageTablesExist::class)
-            ->name('admin.support-messages');
-        Route::post('/support-messages/{supportMessage}/replies', [AdminController::class, 'replyToSupportMessage'])
-            ->middleware(\App\Http\Middleware\EnsureSupportMessageTablesExist::class)
-            ->name('admin.support-messages.reply');
-        Route::patch('/support-messages/{supportMessage}/status', [AdminController::class, 'updateSupportMessageStatus'])
-            ->middleware(\App\Http\Middleware\EnsureSupportMessageTablesExist::class)
-            ->name('admin.support-messages.status');
-        Route::delete('/support-messages/{supportMessage}', [AdminController::class, 'deleteSupportMessage'])
-            ->middleware(\App\Http\Middleware\EnsureSupportMessageTablesExist::class)
-            ->name('admin.support-messages.delete');
+        // Pending account registrations
+        Route::get('/pending-registrations', [AdminController::class, 'getPendingRegistrations'])
+            ->name('admin.pending-registrations');
 
         // Staff management
         Route::get('/staff', [AdminController::class, 'getStaff'])->name('admin.staff');
         Route::patch('/staff/{id}', [AdminController::class, 'updateStaff'])->name('admin.staff.update');
         Route::delete('/staff/{id}', [AdminController::class, 'deleteStaff'])->name('admin.staff.delete');
 
-        // Entry Records
-        Route::get('/entry-records', [AdminController::class, 'getEntryRecords'])->name('admin.entry-records');
-        Route::delete('/entry-records/{source}/{id}', [AdminController::class, 'deleteEntryRecord'])->name('admin.entry-records.delete');
-        Route::delete('/entry-records', [AdminController::class, 'deleteAllEntryRecords'])->name('admin.entry-records.delete-all');
+        // Pickup Records
+        Route::get('/pickup-records', [AdminController::class, 'getEntryRecords'])->name('admin.entry-records');
+        Route::delete('/pickup-records/{source}/{id}', [AdminController::class, 'deleteEntryRecord'])->name('admin.entry-records.delete');
+        Route::delete('/pickup-records', [AdminController::class, 'deleteAllEntryRecords'])->name('admin.entry-records.delete-all');
+        Route::get('/entry-records', fn () => redirect()->route('admin.entry-records'));
 
         // Profile management
         Route::get('/profile', [AdminController::class, 'getProfile'])->name('admin.profile');
@@ -2101,57 +2092,6 @@ Route::get('/parent/profile/sessions', function (Request $request) {
         'userAgent' => $request->userAgent(),
     ]);
 })->name('parent.profile.sessions')->middleware(EnsureUserHasRole::class.':parent');
-
-Route::get('/parent/contact-admin', function (Request $request) {
-    $user = $request->session()->get('supabase_user');
-    $messages = \App\Models\SupportMessage::with('replies')->where('parent_user_id', $user['id'])->latest()->get();
-
-    return view('parent.contact-admin', compact('messages'));
-})->name('parent.contact-admin')->middleware([
-    \App\Http\Middleware\EnsureSupportMessageTablesExist::class,
-    EnsureUserHasRole::class.':parent',
-]);
-
-Route::post('/parent/contact-admin', function (Request $request) {
-    $validated = $request->validate([
-        'subject' => 'required|string|max:120',
-        'message' => 'required|string|max:5000',
-    ]);
-
-    $user = $request->session()->get('supabase_user');
-    \App\Models\SupportMessage::create([
-        'parent_user_id' => $user['id'],
-        'parent_name' => $user['user_metadata']['full_name'] ?? $user['full_name'] ?? null,
-        'parent_email' => $user['email'] ?? null,
-        'subject' => $validated['subject'],
-        'message' => $validated['message'],
-    ]);
-
-    return redirect()->route('parent.contact-admin')->with('status', 'Your message has been sent to the admin.');
-})->name('parent.contact-admin.store')->middleware([
-    \App\Http\Middleware\EnsureSupportMessageTablesExist::class,
-    EnsureUserHasRole::class.':parent',
-]);
-
-Route::post('/parent/contact-admin/{supportMessage}/replies', function (Request $request, string $supportMessage) {
-    $validated = $request->validate([
-        'reply' => 'required|string|max:5000',
-    ]);
-
-    $user = $request->session()->get('supabase_user');
-    $message = \App\Models\SupportMessage::where('parent_user_id', $user['id'])->findOrFail($supportMessage);
-    $message->replies()->create([
-        'sender_type' => 'parent',
-        'sender_id' => (string) $user['id'],
-        'body' => $validated['reply'],
-    ]);
-    $message->update(['status' => 'open']);
-
-    return redirect()->route('parent.contact-admin')->with('status', 'Your reply has been sent to the admin.');
-})->name('parent.contact-admin.reply')->middleware([
-    \App\Http\Middleware\EnsureSupportMessageTablesExist::class,
-    EnsureUserHasRole::class.':parent',
-]);
 
 Route::get('/parent/profile/edit', function (Request $request) use ($getParentData) {
     $data = $getParentData($request);

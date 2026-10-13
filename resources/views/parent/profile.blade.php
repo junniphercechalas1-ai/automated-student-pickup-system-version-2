@@ -151,11 +151,6 @@
                         <a href="{{ route('parent.profile.sessions') }}" class="mt-4 inline-flex rounded-2xl bg-blue-100 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-200">View Sessions</a>
                     </div>
 
-                    <div class="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
-                        <p class="font-semibold text-slate-950">Account Help</p>
-                        <p class="mt-1 text-sm text-slate-600">Having trouble with your account? Send a message to the admin.</p>
-                        <a href="{{ route('parent.contact-admin') }}" class="mt-4 inline-flex rounded-2xl bg-blue-100 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-200">Contact Admin</a>
-                    </div>
                 </div>
             </div>
         </div>

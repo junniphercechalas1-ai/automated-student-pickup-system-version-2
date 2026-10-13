@@ -49,11 +49,11 @@
             </div>
         </div>
 
-        <!-- Successful Entries -->
+        <!-- Successful Pickups -->
         <div class="bg-white rounded-lg shadow p-6 hover:shadow-md transition">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-sm font-medium text-gray-600">Successful Entries</p>
+                    <p class="text-sm font-medium text-gray-600">Successful Pickups</p>
                     <p class="text-3xl font-bold text-gray-900 mt-2">{{ $successfulEntries ?? 0 }}</p>
                     <p class="text-xs text-gray-500 mt-1">Total</p>
                 </div>
@@ -67,10 +67,10 @@
 
     </div>
 
-    <!-- Recent Entry Records -->
+    <!-- Recent Pickup Records -->
     <div class="grid grid-cols-1 gap-6 mb-8">
         <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-lg font-bold text-gray-900 mb-4">Recent Entry Records</h2>
+            <h2 class="text-lg font-bold text-gray-900 mb-4">Recent Pickup Records</h2>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
@@ -116,14 +116,14 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="px-4 py-4 text-center text-sm text-gray-500">No entry records found.</td>
+                                <td colspan="5" class="px-4 py-4 text-center text-sm text-gray-500">No pickup records found.</td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
             <div class="mt-4">
-                <a href="{{ route('admin.entry-records') }}" class="text-blue-600 hover:text-blue-700 font-medium text-sm">View All Entry Records →</a>
+                <a href="{{ route('admin.entry-records') }}" class="text-blue-600 hover:text-blue-700 font-medium text-sm">View All Pickup Records →</a>
             </div>
         </div>
 
@@ -144,15 +144,15 @@
                     <p class="text-sm text-gray-600">Register a new student</p>
                 </div>
             </a>
-            <a href="{{ route('admin.parents') }}" class="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-green-50 transition">
+            <a href="{{ route('admin.students') }}" class="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-green-50 transition">
                 <div class="flex-shrink-0">
                     <svg class="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                         <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 11a6 6 0 00-5.86 0 3 3 0 00-6.14 0A6.993 6.993 0 0012 20a6.993 6.993 0 005.07-2.1A3 3 0 0017.93 11z"></path>
                     </svg>
                 </div>
                 <div>
-                    <p class="font-semibold text-gray-900">Add New Parent / Guardian</p>
-                    <p class="text-sm text-gray-600">Register a new parent/guardian</p>
+                    <p class="font-semibold text-gray-900">Manage User and Student Records</p>
+                    <p class="text-sm text-gray-600">Manage students, parents, and staff accounts</p>
                 </div>
             </a>
             <a href="{{ route('admin.entry-records') }}" class="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-yellow-50 transition">
@@ -162,8 +162,8 @@
                     </svg>
                 </div>
                 <div>
-                    <p class="font-semibold text-gray-900">View Entry Records</p>
-                    <p class="text-sm text-gray-600">View all verification records</p>
+                    <p class="font-semibold text-gray-900">View Pickup Records</p>
+                    <p class="text-sm text-gray-600">View all recorded pickups</p>
                 </div>
             </a>
         </div>

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Admin;
-use App\Models\SupportMessage;
 use App\Services\SmsService;
 use App\Support\NameParts;
 use App\Support\PendingRegistrationSchema;
@@ -1100,6 +1099,7 @@ class AdminController extends Controller
                             ])))
                             : ($details['student_name'] ?? null),
                         'relationship' => $details['relationship'] ?? null,
+                        'username' => $details['username'] ?? null,
                         'phone_number' => $registration['phone_number'],
                         'mobile_number' => $registration['phone_number'],
                         'email' => $details['email'] ?? null,
@@ -1129,6 +1129,11 @@ class AdminController extends Controller
         }
 
         return view('admin.parents');
+    }
+
+    public function getPendingRegistrations(): View
+    {
+        return view('admin.pending-registrations');
     }
 
     public function createParent(Request $request): JsonResponse
@@ -1371,6 +1376,7 @@ class AdminController extends Controller
                         'id' => $registration['id'],
                         ...$nameParts,
                         'email' => null,
+                        'username' => $details['username'] ?? null,
                         'phone_number' => $registration['phone_number'],
                         'is_approved' => false,
                         'is_active' => true,
@@ -2008,48 +2014,6 @@ class AdminController extends Controller
         $admin = $adminId ? $this->findSupabaseAdmin($adminId) : null;
 
         return view('admin.profile', ['admin' => $admin]);
-    }
-
-    public function getSupportMessages(): View
-    {
-        return view('admin.support-messages', [
-            'messages' => SupportMessage::with('replies')->latest()->paginate(20),
-            'openCount' => SupportMessage::whereIn('status', ['open', 'in_progress'])->count(),
-        ]);
-    }
-
-    public function replyToSupportMessage(Request $request, SupportMessage $supportMessage)
-    {
-        $validated = $request->validate([
-            'reply' => 'required|string|max:5000',
-        ]);
-
-        $supportMessage->replies()->create([
-            'sender_type' => 'admin',
-            'sender_id' => (string) Session::get('admin_id'),
-            'body' => $validated['reply'],
-        ]);
-        $supportMessage->update(['status' => 'in_progress']);
-
-        return back()->with('status', 'Reply sent to the parent.');
-    }
-
-    public function updateSupportMessageStatus(Request $request, SupportMessage $supportMessage)
-    {
-        $validated = $request->validate([
-            'status' => 'required|in:open,in_progress,resolved',
-        ]);
-
-        $supportMessage->update(['status' => $validated['status']]);
-
-        return back()->with('status', 'Support message status updated.');
-    }
-
-    public function deleteSupportMessage(SupportMessage $supportMessage)
-    {
-        $supportMessage->delete();
-
-        return back()->with('status', 'Support message deleted.');
     }
 
     public function deleteEntryRecord(string $source, int $id)

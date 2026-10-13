@@ -69,7 +69,7 @@ The admin parent and student screens load records from Supabase through the Lara
 
 After saving environment changes, redeploy the service. The Dockerfile runs pending Laravel migrations at container startup. If the Render service uses a native runtime instead of the Dockerfile, run `php artisan migrate --force` as its deploy command.
 
-Parent support messages are stored in the Laravel database; parent and student profile records are stored in Supabase.
+Parent-to-admin messaging has been removed. Existing support-message database records are retained but are no longer accessible through the application; parent and student profile records are stored in Supabase.
 
 ## GSM SMS bridge
 

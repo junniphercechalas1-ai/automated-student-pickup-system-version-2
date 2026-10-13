@@ -2,6 +2,8 @@
 
 @section('content')
 <div class="min-h-screen bg-gray-50 px-6 lg:px-8 py-8">
+    @include('admin.partials.records-tabs')
+
     <!-- Page Header -->
     <div class="mb-8 flex justify-between items-start">
         <div>
@@ -45,7 +47,7 @@
         </div>
 
         <!-- Pending Accounts -->
-        <div class="bg-white rounded-lg shadow p-6 hover:shadow-md transition">
+        <a href="{{ route('admin.pending-registrations') }}" class="block bg-white rounded-lg shadow p-6 hover:shadow-md hover:ring-2 hover:ring-yellow-300 transition">
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm font-medium text-gray-600">Pending Accounts</p>
@@ -58,7 +60,7 @@
                     </svg>
                 </div>
             </div>
-        </div>
+        </a>
 
     </div>
 
@@ -87,14 +89,13 @@
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">FULL NAME</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">EMAIL</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">PHONE</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">APPROVAL</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">STATUS</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">ACTIONS</th>
                 </tr>
             </thead>
             <tbody id="staffTable" class="bg-white divide-y divide-gray-200">
                 <tr>
-                    <td colspan="6" class="px-6 py-4 text-center text-gray-500">Loading staff...</td>
+                    <td colspan="5" class="px-6 py-4 text-center text-gray-500">Loading staff...</td>
                 </tr>
                 </tbody>
             </table>
@@ -155,14 +156,14 @@
                 }
             });
             const staff = await response.json();
-            staffRecords = Array.isArray(staff) ? staff : [];
+            staffRecords = Array.isArray(staff) ? staff.filter(member => member.is_approved === true && member.is_active !== false) : [];
 
             const tbody = document.getElementById('staffTable');
             tbody.innerHTML = '';
 
             if (staffRecords.length === 0) {
                 tbody.innerHTML =
-                    '<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">No staff found</td></tr>';
+                    '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">No approved staff found</td></tr>';
                 return;
             }
 
@@ -173,21 +174,13 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${member.email || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${member.phone_number || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${member.is_approved ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
-                                ${member.is_approved ? 'Approved' : 'Pending'}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
                             <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${member.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
                                 ${member.is_active ? 'Active' : 'Inactive'}
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm">
-                            ${member.is_pending_registration ? '' : `<button type="button" onclick="editStaff('${member.id}')" class="mr-3 text-blue-600 hover:text-blue-800">Edit</button>`}
-                            ${member.is_approved
-                                ? `<button onclick="deleteStaff('${member.id}')" class="text-rose-600 hover:text-rose-800">Delete Account</button>`
-                                : `<button onclick="updateStaffApproval('${member.id}', true)" class="text-emerald-600 hover:text-emerald-800 mr-3">Approve</button>
-                                   <button onclick="updateStaffApproval('${member.id}', false)" class="text-rose-600 hover:text-rose-800">Decline</button>`}
+                            <button type="button" onclick="editStaff('${member.id}')" class="mr-3 text-blue-600 hover:text-blue-800">Edit</button>
+                            <button onclick="deleteStaff('${member.id}')" class="text-rose-600 hover:text-rose-800">Delete Account</button>
                         </td>
                     </tr>
                 `;
@@ -195,7 +188,7 @@
         } catch (error) {
             console.error('Error loading staff:', error);
             document.getElementById('staffTable').innerHTML =
-                '<tr><td colspan="6" class="px-6 py-4 text-center text-red-500">Error loading staff</td></tr>';
+                '<tr><td colspan="5" class="px-6 py-4 text-center text-red-500">Error loading staff</td></tr>';
         }
     }
 
@@ -246,42 +239,6 @@
             await loadStaff();
         } catch (error) {
             console.error('Error updating staff account:', error);
-            window.alert(error.message);
-        }
-    }
-
-    async function updateStaffApproval(id, approved) {
-        const action = approved ? 'approve' : 'decline';
-        if (!window.confirm(`Are you sure you want to ${action} this staff account?`)) {
-            return;
-        }
-
-        try {
-            const response = await fetch(`/admin/staff/${encodeURIComponent(id)}`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                }
-                ,body: JSON.stringify({
-                    is_approved: approved,
-                    is_active: approved,
-                })
-            });
-
-            if (!response.ok) {
-                const payload = await response.json().catch(() => ({}));
-                throw new Error(payload.error || `Unable to ${action} staff account.`);
-            }
-
-            const payload = await response.json().catch(() => ({}));
-            if (payload.notification_sent === false) {
-                window.alert(payload.message || 'The account decision was saved, but the SMS notification could not be sent.');
-            }
-
-            await loadStaff();
-        } catch (error) {
-            console.error(`Error trying to ${action} staff account:`, error);
             window.alert(error.message);
         }
     }
