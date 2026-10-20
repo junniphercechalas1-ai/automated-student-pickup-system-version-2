@@ -26,21 +26,17 @@ if (window.self === window.top) {
     document.body.append(toolbar, dialog);
 
     const fitPreview = () => {
-        if (dialog.dataset.mode !== 'mobile') {
-            frame.style.transform = '';
-            canvas.style.width = '';
-            canvas.style.height = '';
-            return;
-        }
-
+        const dimensions = dialog.dataset.mode === 'desktop'
+            ? { width: 1440, height: 900 }
+            : { width: 390, height: 844 };
         const availableWidth = dialog.clientWidth - 32;
         const availableHeight = dialog.clientHeight - 32;
-        const scale = Math.min(1, availableWidth / 390, availableHeight / 844);
+        const scale = Math.min(1, availableWidth / dimensions.width, availableHeight / dimensions.height);
 
         frame.style.transform = `scale(${scale})`;
         frame.style.transformOrigin = 'top left';
-        canvas.style.width = `${390 * scale}px`;
-        canvas.style.height = `${844 * scale}px`;
+        canvas.style.width = `${dimensions.width * scale}px`;
+        canvas.style.height = `${dimensions.height * scale}px`;
     };
 
     const closePreview = () => {
