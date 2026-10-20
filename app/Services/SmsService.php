@@ -3,13 +3,14 @@
 namespace App\Services;
 
 use App\Support\PhoneNumber;
+use DateTimeInterface;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class SmsService
 {
-    public function send(string $to, string $message): array
+    public function send(string $to, string $message, ?DateTimeInterface $expiresAt = null): array
     {
         $to = PhoneNumber::normalize($to);
         $driver = (string) config('services.sms.driver', 'log');
@@ -27,7 +28,7 @@ class SmsService
         }
 
         if ($driver === 'supabase_queue') {
-            return app(SupabaseSmsQueue::class)->enqueue($to, $message);
+            return app(SupabaseSmsQueue::class)->enqueue($to, $message, expiresAt: $expiresAt);
         }
 
         if ($driver === 'gsm') {

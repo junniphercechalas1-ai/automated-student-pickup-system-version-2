@@ -950,7 +950,11 @@ Route::post('/supabase/phone-verification/request', function (Request $request, 
     ], $expiresAt);
 
     try {
-        $smsService->send($phoneNumber, 'Your Orion account verification code is '.$otp.'. It expires in 5 minutes. Do not share this code.');
+        $smsResult = $smsService->send(
+            $phoneNumber,
+            'Your Orion account verification code is '.$otp.'. It expires in 5 minutes. Do not share this code.',
+            $expiresAt,
+        );
     } catch (\Throwable $exception) {
         Cache::forget($cacheKey);
         Log::warning('Unable to send signup phone verification SMS.', ['exception' => get_class($exception)]);
@@ -963,7 +967,9 @@ Route::post('/supabase/phone-verification/request', function (Request $request, 
     return response()->json([
         'flow_id' => $flowId,
         'masked_phone' => $maskedPhone,
-        'message' => 'Verification code sent to '.$maskedPhone.'. Enter it here to verify your number before creating your account.',
+        'message' => ($smsResult['driver'] ?? null) === 'supabase_queue'
+            ? 'Verification code queued for '.$maskedPhone.'. Delivery may take a few minutes. It expires 5 minutes after it was requested.'
+            : 'Verification code sent to '.$maskedPhone.'. Enter it here to verify your number before creating your account.',
     ]);
 });
 

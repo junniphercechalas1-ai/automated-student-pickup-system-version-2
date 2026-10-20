@@ -6,10 +6,16 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
+use DateTimeInterface;
 
 class SupabaseSmsQueue
 {
-    public function enqueue(string $recipientPhone, string $message, ?string $notificationId = null): array
+    public function enqueue(
+        string $recipientPhone,
+        string $message,
+        ?string $notificationId = null,
+        ?DateTimeInterface $expiresAt = null,
+    ): array
     {
         $payload = [
             'recipient_phone' => $recipientPhone,
@@ -19,6 +25,9 @@ class SupabaseSmsQueue
         ];
         if ($notificationId !== null) {
             $payload['notification_id'] = $notificationId;
+        }
+        if ($expiresAt !== null) {
+            $payload['expires_at'] = $expiresAt->format(DATE_ATOM);
         }
 
         $response = $this->request()

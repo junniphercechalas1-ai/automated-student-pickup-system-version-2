@@ -197,8 +197,8 @@ class ParentProfileSyncTest extends TestCase
         $smsService = \Mockery::mock(SmsService::class);
         $smsService->shouldReceive('send')
             ->once()
-            ->with('+639170001111', \Mockery::type('string'))
-            ->andReturnUsing(function (string $phone, string $message) use (&$otp): array {
+            ->with('+639170001111', \Mockery::type('string'), \Mockery::type(\DateTimeInterface::class))
+            ->andReturnUsing(function (string $phone, string $message, \DateTimeInterface $expiresAt) use (&$otp): array {
                 preg_match('/verification code is ([0-9]{6})\./', $message, $matches);
                 $otp = $matches[1] ?? null;
 

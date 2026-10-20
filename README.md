@@ -97,3 +97,8 @@ On the Windows laptop connected to the GSM modem:
 3. Run `php artisan sms:work` and leave it running. It polls the queue every five seconds by default. Use `php artisan sms:work --once` to process at most one pending message.
 
 The worker claims a row by changing `pending` to `processing` before sending. It then stores `sent` or `failed` and updates `provider_id`, `error_message`, and the claim/completion timestamps. The laptop must remain powered on, connected to the internet, and have the worker running to send queued messages.
+
+Signup verification SMS rows include the OTP expiration time. If the worker does
+not pick up a code before its five-minute expiry, it marks that queue row failed
+instead of sending a code the parent can no longer use. A `sent` row means the
+modem accepted the SMS for submission; it does not confirm delivery to the phone.

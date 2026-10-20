@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Services\SmsService;
 use App\Services\SupabaseSmsQueue;
+use DateTimeImmutable;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -65,6 +66,26 @@ class SmsServiceTest extends TestCase
                 && $request['recipient_phone'] === '+639171234567'
                 && $request['message'] === 'Pickup ready'
                 && $request['status'] === 'pending';
+        });
+    }
+
+    public function test_supabase_queue_sms_expires_with_its_otp(): void
+    {
+        config([
+            'services.sms.driver' => 'supabase_queue',
+            'services.sms.queue.url' => 'https://example.supabase.co',
+            'services.sms.queue.service_key' => 'test-service-key',
+        ]);
+        Http::fake([
+            'https://example.supabase.co/rest/v1/sms_queue' => Http::response([['id' => 'queue-otp']], 201),
+        ]);
+        $expiresAt = new DateTimeImmutable('2026-10-20T12:00:00+08:00');
+
+        app(SmsService::class)->send('+639171234567', 'Your verification code is 123456.', $expiresAt);
+
+        Http::assertSent(function ($request): bool {
+            return $request->url() === 'https://example.supabase.co/rest/v1/sms_queue'
+                && $request['expires_at'] === '2026-10-20T12:00:00+08:00';
         });
     }
 
