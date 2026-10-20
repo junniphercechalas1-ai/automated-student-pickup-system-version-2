@@ -61,7 +61,7 @@ export function bindPhoneSignupVerification({
             otpSection.classList.remove('hidden');
             otpInput.required = true;
             otpInput.focus();
-            status.textContent = `Code sent to ${payload.masked_phone}.`;
+            status.textContent = payload.message || `Verification code requested for ${payload.masked_phone}.`;
             showMessage(payload.message || 'Enter the SMS code to verify your number.', false);
         } catch (error) {
             showMessage(error.message || 'Unable to send a verification code.', true);
