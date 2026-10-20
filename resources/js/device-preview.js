@@ -71,7 +71,9 @@ if (window.self === window.top) {
     const updatePreviewButton = () => {
         const mode = viewportQuery.matches ? 'desktop' : 'mobile';
         button.dataset.mode = mode;
-        button.textContent = dialog.hidden ? (mode === 'desktop' ? 'Desktop' : 'Mobile') : 'Normal';
+        button.textContent = dialog.hidden
+            ? (mode === 'desktop' ? 'Desktop' : 'Mobile')
+            : (viewportQuery.matches ? 'Mobile' : 'Desktop');
         button.setAttribute('aria-label', dialog.hidden ? `Preview in ${mode} view` : 'Return to normal view');
         button.setAttribute('aria-pressed', String(!dialog.hidden));
     };
