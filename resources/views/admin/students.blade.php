@@ -79,25 +79,28 @@
     </div>
 
     <!-- Students Table -->
-    <div class="bg-white rounded-lg shadow overflow-hidden">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">STUDENT ID</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">FULL NAME</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">GRADE LEVEL</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">SECTION</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">PARENT / GUARDIAN</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">STATUS</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">ACTIONS</th>
-                </tr>
-            </thead>
-            <tbody id="studentsTable" class="bg-white divide-y divide-gray-200">
-                <tr>
-                    <td colspan="7" class="px-6 py-4 text-center text-gray-500">Loading students...</td>
-                </tr>
-            </tbody>
-        </table>
+    <div class="admin-students-table bg-white rounded-lg shadow">
+        <p class="admin-students-table__hint" aria-hidden="true">Swipe horizontally to see all columns</p>
+        <div class="admin-students-table__scroll">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">STUDENT ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">FULL NAME</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">GRADE LEVEL</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">SECTION</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">PARENT / GUARDIAN</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">STATUS</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">ACTIONS</th>
+                    </tr>
+                </thead>
+                <tbody id="studentsTable" class="bg-white divide-y divide-gray-200">
+                    <tr>
+                        <td colspan="7" class="px-6 py-4 text-center text-gray-500">Loading students...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -344,14 +347,15 @@
                     }
                 });
 
-                if (response.ok) {
-                    loadStudents();
-                } else {
-                    alert('Error deleting student');
+                if (!response.ok) {
+                    const payload = await response.json().catch(() => ({}));
+                    throw new Error(payload.error || payload.message || 'Unable to delete student from Supabase.');
                 }
+
+                await loadStudents();
             } catch (error) {
                 console.error('Error:', error);
-                alert('Error deleting student');
+                alert(error instanceof Error ? error.message : 'Unable to delete student from Supabase.');
             }
         }
     }

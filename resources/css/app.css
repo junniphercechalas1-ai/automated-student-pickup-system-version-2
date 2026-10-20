@@ -170,6 +170,10 @@ body.device-preview-open {
     transform: rotate(-45deg);
 }
 
+.admin-students-table__hint {
+    display: none;
+}
+
 @media (max-width: 767px) {
     .admin-portal-shell {
         display: flex;
@@ -361,6 +365,25 @@ body.device-preview-open {
     .admin-dashboard-page .overflow-x-auto {
         max-width: 100%;
         overscroll-behavior-x: contain;
+    }
+
+    .admin-students-table__hint {
+        display: block;
+        padding: 0.65rem 1rem;
+        border-bottom: 1px solid #e5e7eb;
+        color: #6b7280;
+        font-size: 0.75rem;
+    }
+
+    .admin-students-table__scroll {
+        max-width: 100%;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .admin-students-table__scroll table {
+        min-width: 900px;
     }
 }
 
