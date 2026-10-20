@@ -4,7 +4,7 @@
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Automated Student Pickup Verification</title>
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/device-preview.js'])
     </head>
     <body class="min-h-screen bg-slate-100 text-slate-900">
         <div class="min-h-screen lg:grid lg:grid-cols-[280px_1fr] gap-4 p-4 lg:p-6">

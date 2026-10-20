@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="csrf-token" content="{{ csrf_token() }}">
         <title>@yield('title', 'Staff') - Pickup Verification</title>
-        @vite(['resources/css/app.css'])
+        @vite(['resources/css/app.css', 'resources/js/device-preview.js'])
         @yield('head')
     </head>
     <body class="staff-portal-shell">
@@ -23,9 +23,13 @@
                     <div>
                         <p class="staff-portal-branding-label">Orion Christian Academy</p>
                     </div>
+                    <button class="portal-menu-toggle" type="button" aria-expanded="false" aria-controls="staff-portal-navigation">
+                        <span class="portal-menu-toggle-lines" aria-hidden="true"></span>
+                        <span class="sr-only">Open staff navigation</span>
+                    </button>
                 </div>
 
-                <nav class="staff-portal-nav" aria-label="Staff navigation">
+                <nav id="staff-portal-navigation" class="staff-portal-nav" aria-label="Staff navigation">
                     <a href="/staff/pickup-verification" class="{{ request()->routeIs('staff.pickup-verification') ? 'active' : '' }}">
                         <span class="staff-portal-icon">⊕</span>
                         <span>QR Scanner</span>
@@ -38,13 +42,6 @@
                         <span class="staff-portal-icon">◌</span>
                         <span>My Account</span>
                     </a>
-                    <form action="/logout" method="POST" class="staff-portal-logout-form">
-                        @csrf
-                        <button type="submit" class="staff-portal-logout">
-                            <span class="staff-portal-icon">⇢</span>
-                            <span>Logout</span>
-                        </button>
-                    </form>
                 </nav>
 
                 <div class="staff-portal-help">
@@ -94,6 +91,19 @@
                 </div>
             </main>
         </div>
+        <script>
+            const staffMenuToggle = document.querySelector('.portal-menu-toggle');
+            const staffSidebar = document.querySelector('.staff-portal-sidebar');
+
+            staffMenuToggle?.addEventListener('click', () => {
+                const isExpanded = staffMenuToggle.getAttribute('aria-expanded') === 'true';
+                staffMenuToggle.setAttribute('aria-expanded', String(!isExpanded));
+                staffMenuToggle.querySelector('.sr-only').textContent = isExpanded
+                    ? 'Open staff navigation'
+                    : 'Close staff navigation';
+                staffSidebar.classList.toggle('menu-open', !isExpanded);
+            });
+        </script>
         @stack('scripts')
     </body>
 </html>

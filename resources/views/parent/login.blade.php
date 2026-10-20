@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="csrf-token" content="{{ csrf_token() }}" />
         <title>Parent/Guardian Login - Orion Christian Academy</title>
-        @vite(['resources/css/app.css', 'resources/js/parent-auth.js'])
+        @vite(['resources/css/app.css', 'resources/js/parent-auth.js', 'resources/js/device-preview.js'])
     </head>
     <body class="min-h-screen text-slate-950 flex items-center justify-center py-6 px-4" style="background-image: url('{{ asset('images/bg.png') }}'); background-size: cover; background-attachment: fixed; background-position: center;">
         <div class="max-w-sm mx-auto">

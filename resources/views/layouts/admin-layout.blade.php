@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ config('app.name', 'Orion Academy') }} - Admin Portal</title>
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/device-preview.js'])
     <style>
         .sidebar-nav-item {
             display: flex;
@@ -78,11 +78,15 @@
                         <img src="/images/orion-logo.png" alt="Orion Christian Academy">
                     </div>
                     <h1 class="text-[8px] font-bold leading-tight tracking-wide">ORION CHRISTIAN ACADEMY</h1>
+                    <button class="portal-menu-toggle" type="button" aria-expanded="false" aria-controls="admin-portal-navigation admin-portal-logout">
+                        <span class="portal-menu-toggle-lines" aria-hidden="true"></span>
+                        <span class="sr-only">Open administrator navigation</span>
+                    </button>
                 </div>
             </div>
 
             <!-- Navigation Menu -->
-            <nav class="flex-1 overflow-y-auto">
+            <nav id="admin-portal-navigation" class="flex-1 overflow-y-auto">
                 <ul class="space-y-1">
                     <li>
                         <a href="{{ route('admin.dashboard') }}" class="sidebar-nav-item {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
@@ -136,7 +140,7 @@
             </nav>
 
             <!-- Logout Button -->
-            <div class="p-3 border-t border-blue-800">
+            <div id="admin-portal-logout" class="p-3 border-t border-blue-800">
                 <form method="POST" action="{{ route('admin.logout') }}" class="w-full">
                     @csrf
                     <button type="submit" class="sidebar-nav-item w-full justify-start">
@@ -198,5 +202,18 @@
         </div>
         @stack('scripts')
     </div>
+    <script>
+        const adminMenuToggle = document.querySelector('.portal-menu-toggle');
+        const adminSidebar = document.querySelector('.admin-portal-sidebar');
+
+        adminMenuToggle?.addEventListener('click', () => {
+            const isExpanded = adminMenuToggle.getAttribute('aria-expanded') === 'true';
+            adminMenuToggle.setAttribute('aria-expanded', String(!isExpanded));
+            adminMenuToggle.querySelector('.sr-only').textContent = isExpanded
+                ? 'Open administrator navigation'
+                : 'Close administrator navigation';
+            adminSidebar.classList.toggle('menu-open', !isExpanded);
+        });
+    </script>
 </body>
 </html>

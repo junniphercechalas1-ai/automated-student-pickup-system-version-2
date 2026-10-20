@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="csrf-token" content="{{ csrf_token() }}" />
         <title>Administrator Login - Orion Christian Academy</title>
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/device-preview.js'])
     </head>
     <body style="background-image: url('/images/bg.png'); background-size: cover; background-position: center; background-attachment: fixed;" class="min-h-screen text-slate-950 flex items-center justify-center py-6 px-4">  
         <div class="max-w-sm mx-auto">

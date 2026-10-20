@@ -4,7 +4,7 @@
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>@yield('title') - Pickup Verification</title>
-        @vite(['resources/css/app.css', 'resources/js/parent-dashboard.js'])
+        @vite(['resources/css/app.css', 'resources/js/parent-dashboard.js', 'resources/js/device-preview.js'])
     </head>
     <body class="parent-portal-shell">
         @php
@@ -23,6 +23,11 @@
                         <small>OF THE PHILIPPINES</small>
                     </div>
                 </div>
+
+                <button class="portal-menu-toggle parent-portal-menu-toggle" type="button" aria-expanded="false" aria-controls="parent-portal-mobile-navigation">
+                    <span class="portal-menu-toggle-lines" aria-hidden="true"></span>
+                    <span class="sr-only">Open parent navigation</span>
+                </button>
 
                 <div class="parent-portal-user-pill">
                     <div class="parent-portal-user-avatar">{{ $parentInitial }}</div>
@@ -43,30 +48,27 @@
                         </button>
                     </form>
                 </div>
+                @include('parent.partials.navigation', ['navigationClass' => 'parent-portal-mobile-nav', 'navigationId' => 'parent-portal-mobile-navigation'])
             </header>
 
             <main class="parent-portal-main">
                 @yield('content')
             </main>
 
-            <nav class="parent-portal-bottom-nav" aria-label="Parent portal navigation">
-                <a href="/parent/dashboard" class="{{ request()->routeIs('parent.dashboard') ? 'active' : '' }}">
-                    <span class="parent-portal-nav-icon">⌂</span>
-                    <span>Home</span>
-                </a>
-                <a href="/parent/qr-code" class="{{ request()->routeIs('parent.qr-code') ? 'active' : '' }}">
-                    <span class="parent-portal-nav-icon">◫</span>
-                    <span>My QR Code</span>
-                </a>
-                <a href="/parent/pickup-history" class="{{ request()->routeIs('parent.pickup-history') ? 'active' : '' }}">
-                    <span class="parent-portal-nav-icon">▣</span>
-                    <span>Pickup History</span>
-                </a>
-                <a href="/parent/profile" class="{{ request()->routeIs('parent.profile') || request()->routeIs('parent.profile.edit') ? 'active' : '' }}">
-                    <span class="parent-portal-nav-icon">◉</span>
-                    <span>Profile</span>
-                </a>
-            </nav>
+            @include('parent.partials.navigation', ['navigationClass' => 'parent-portal-bottom-nav', 'navigationId' => 'parent-portal-bottom-navigation'])
         </div>
+        <script>
+            const parentMenuToggle = document.querySelector('.parent-portal-menu-toggle');
+            const parentPortalPage = document.querySelector('.parent-portal-page');
+
+            parentMenuToggle?.addEventListener('click', () => {
+                const isExpanded = parentMenuToggle.getAttribute('aria-expanded') === 'true';
+                parentMenuToggle.setAttribute('aria-expanded', String(!isExpanded));
+                parentMenuToggle.querySelector('.sr-only').textContent = isExpanded
+                    ? 'Open parent navigation'
+                    : 'Close parent navigation';
+                parentPortalPage.classList.toggle('menu-open', !isExpanded);
+            });
+        </script>
     </body>
 </html>
