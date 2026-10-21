@@ -14,8 +14,8 @@ begin
       and not exists (
         select 1
         from public.parents_students ps
-        where ps.parent_id = p.id
-          and ps.student_id = p.student_id
+        where ps.parents_id = p.id
+          and ps.students_id = p.student_id
       )
   ) then
     raise exception 'Cannot drop parents.student_id: one or more parent-student links have not been copied to parents_students.';

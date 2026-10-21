@@ -34,8 +34,12 @@ class ParentAccountDeletionTest extends TestCase
             if ($request->method() === 'GET' && str_contains($request->url(), '/rest/v1/parents')) {
                 return Http::response([[
                     'id' => 42,
-                    'auth_user_id' => 'parent-auth-id',
+                    'auth_users_id' => 'parent-auth-id',
                 ]], 200);
+            }
+
+            if ($request->method() === 'DELETE' && str_contains($request->url(), '/rest/v1/parents')) {
+                return Http::response([['id' => 42]], 200);
             }
 
             return Http::response([], 204);
@@ -58,7 +62,7 @@ class ParentAccountDeletionTest extends TestCase
             if ($request->method() === 'GET' && str_contains($request->url(), '/rest/v1/parents')) {
                 return Http::response([[
                     'id' => 42,
-                    'auth_user_id' => 'parent-auth-id',
+                    'auth_users_id' => 'parent-auth-id',
                 ]], 200);
             }
 

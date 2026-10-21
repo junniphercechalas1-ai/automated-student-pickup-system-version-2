@@ -387,7 +387,7 @@ Route::get('/supabase/verify-parent-qr', function (Request $request) {
     }
 
     $isLinked = collect($linksResponse->json())->contains(
-        fn (array $link): bool => (int) ($link['student_id'] ?? 0) === (int) $student['id']
+        fn (array $link): bool => (int) ($link['students_id'] ?? 0) === (int) $student['id']
     );
     if (! $isLinked) {
         return response()->json(['message' => 'This student is not linked to the parent.'], 403);
@@ -418,13 +418,13 @@ Route::post('/supabase/pickups', function (Request $request) {
     }
 
     $pickupPayload = [
-        'student_id' => $request->input('student_id'),
+        'students_id' => $request->input('student_id'),
         'picked_at' => now()->toIso8601String(),
     ];
 
     // Include parent_id if provided (from QR scan)
     if ($request->filled('parent_id')) {
-        $pickupPayload['parent_id'] = $request->input('parent_id');
+        $pickupPayload['parents_id'] = $request->input('parent_id');
     }
 
     $pickupResponse = Http::withHeaders([
@@ -442,7 +442,16 @@ Route::post('/supabase/pickups', function (Request $request) {
         ], 500);
     }
 
-    return response()->json($pickupResponse->json());
+    $pickups = collect($pickupResponse->json())->map(function (array $pickup): array {
+        $pickup['student_id'] = $pickup['students_id'] ?? null;
+        $pickup['parent_id'] = $pickup['parents_id'] ?? null;
+        unset($pickup['students_id']);
+        unset($pickup['parents_id']);
+
+        return $pickup;
+    });
+
+    return response()->json($pickups);
 });
 
 Route::post('/supabase/parent-profile', function (Request $request) {
@@ -489,7 +498,7 @@ Route::post('/supabase/parent-profile', function (Request $request) {
 
     $parentPayload = [
         ...$nameParts,
-        'auth_user_id' => $request->input('user_id'),
+        'auth_users_id' => $request->input('user_id'),
         'mobile_number' => PhoneNumber::normalize($request->input('mobile_number')),
         'relationship' => $request->input('relationship'),
         'is_active' => true,
@@ -703,7 +712,7 @@ Route::post('/supabase/username-login', function (Request $request) {
         }
 
         $table = $validated['account_type'] === 'parent' ? 'parents' : 'staff';
-        $userIdColumn = 'auth_user_id';
+        $userIdColumn = 'auth_users_id';
         $profileResponse = Http::withHeaders([
             'apikey' => $serviceKey,
             'Authorization' => 'Bearer '.$serviceKey,
@@ -1134,7 +1143,7 @@ Route::post('/staff/password-reset/request', function (Request $request, SmsServ
         'Authorization' => 'Bearer '.$serviceKey,
         'Accept' => 'application/json',
     ])->get("{$supabaseUrl}/rest/v1/staff", [
-        'select' => 'auth_user_id,phone_number',
+        'select' => 'auth_users_id,phone_number',
         'phone_number' => 'eq.'.$phoneNumber,
         'limit' => 1,
     ]);
@@ -1147,7 +1156,7 @@ Route::post('/staff/password-reset/request', function (Request $request, SmsServ
 
     $staff = collect($staffResponse->json())->first();
     if (! is_array($staff)
-        || empty($staff['auth_user_id'])
+        || empty($staff['auth_users_id'])
         || PhoneNumber::normalize($staff['phone_number'] ?? null) !== $phoneNumber) {
         return response()->json(['message' => 'No staff account is registered with this number.'], 404);
     }
@@ -1162,7 +1171,7 @@ Route::post('/staff/password-reset/request', function (Request $request, SmsServ
     $expiresAt = now()->addMinutes(5);
     $cacheKey = 'staff-password-reset:'.$flowId;
     Cache::put($cacheKey, [
-        'staff_id' => (string) $staff['auth_user_id'],
+        'staff_id' => (string) $staff['auth_users_id'],
         'phone_hash' => $phoneHash,
         'otp_hash' => Hash::make($otp),
         'attempts' => 0,
@@ -1331,7 +1340,7 @@ Route::post('/supabase/reset-password', function (Request $request, SmsService $
         $accountRecord = null;
         foreach ($phoneFields as $phoneField) {
             $accountResponse = Http::withHeaders($headers)->get("{$supabaseUrl}/rest/v1/{$accountTable}", [
-                'select' => 'id,auth_user_id,is_approved,'.$phoneField,
+                'select' => 'id,auth_users_id,is_approved,'.$phoneField,
                 $phoneField => 'eq.'.$submittedPhone,
                 'limit' => 1,
             ]);
@@ -1348,7 +1357,7 @@ Route::post('/supabase/reset-password', function (Request $request, SmsService $
 
         $flowId = Str::random(48);
         $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-        $accountUserId = $accountRecord['auth_user_id'] ?? null;
+        $accountUserId = $accountRecord['auth_users_id'] ?? null;
         $registeredPhone = PhoneNumber::normalize($accountRecord['mobile_number'] ?? $accountRecord['phone_number'] ?? null);
         $canReset = is_array($accountRecord)
             && ! empty($accountUserId)
@@ -1356,7 +1365,7 @@ Route::post('/supabase/reset-password', function (Request $request, SmsService $
         $cacheKey = 'password-reset-sms:'.$flowId;
         $expiresAt = now()->addMinutes(5);
         Cache::put($cacheKey, [
-            'auth_user_id' => $canReset ? (string) $accountUserId : null,
+            'auth_users_id' => $canReset ? (string) $accountUserId : null,
             'code_hash' => $canReset ? Hash::make($code) : null,
             'attempts' => 0,
             'expires_at' => $expiresAt->timestamp,
@@ -1423,7 +1432,7 @@ Route::post('/supabase/reset-password/phone', function (Request $request) {
     $cacheKey = 'password-reset-sms:'.$validated['flow_id'];
     $reset = Cache::get($cacheKey);
     if (! is_array($reset)
-        || empty($reset['auth_user_id'])
+        || empty($reset['auth_users_id'])
         || empty($reset['code_hash'])
         || now()->timestamp >= (int) ($reset['expires_at'] ?? 0)) {
         Cache::forget($cacheKey);
@@ -1455,13 +1464,13 @@ Route::post('/supabase/reset-password/phone', function (Request $request) {
         'Authorization' => 'Bearer '.$serviceKey,
         'Content-Type' => 'application/json',
         'Accept' => 'application/json',
-    ])->put("{$supabaseUrl}/auth/v1/admin/users/{$reset['auth_user_id']}", [
+    ])->put("{$supabaseUrl}/auth/v1/admin/users/{$reset['auth_users_id']}", [
         'password' => $validated['password'],
     ]);
 
     if ($updateResponse->failed()) {
         Log::warning('Unable to update a parent password after SMS verification.', [
-            'user_id' => $reset['auth_user_id'],
+            'user_id' => $reset['auth_users_id'],
             'status' => $updateResponse->status(),
         ]);
 
@@ -1542,8 +1551,8 @@ Route::post('/supabase/staff-profile', function (Request $request) {
         'Authorization' => 'Bearer '.$serviceKey,
         'Accept' => 'application/json',
     ])->get("{$supabaseUrl}/rest/v1/staff", [
-        'select' => 'id,auth_user_id,is_approved,is_active',
-        'auth_user_id' => 'eq.'.urlencode((string) $request->input('user_id')),
+        'select' => 'id,auth_users_id,is_approved,is_active',
+        'auth_users_id' => 'eq.'.urlencode((string) $request->input('user_id')),
         'limit' => 1,
     ]);
     $existingStaff = $existingStaffResponse->successful()
@@ -1551,7 +1560,7 @@ Route::post('/supabase/staff-profile', function (Request $request) {
         : null;
 
     $payload = [
-        'auth_user_id' => $request->input('user_id'),
+        'auth_users_id' => $request->input('user_id'),
         ...NameParts::split((string) $request->input('full_name')),
         'phone_number' => PhoneNumber::normalize($request->input('phone_number')),
         'is_approved' => is_array($existingStaff) ? (bool) ($existingStaff['is_approved'] ?? false) : false,
@@ -1573,7 +1582,7 @@ Route::post('/supabase/staff-profile', function (Request $request) {
         'Content-Type' => 'application/json',
         'Accept' => 'application/json',
         'Prefer' => 'resolution=merge-duplicates,return=representation',
-    ])->post("{$supabaseUrl}/rest/v1/staff?on_conflict=auth_user_id", $payloadForSupabase);
+    ])->post("{$supabaseUrl}/rest/v1/staff?on_conflict=auth_users_id", $payloadForSupabase);
 
     if ($response->failed()) {
         $details = $response->json();
@@ -1591,7 +1600,7 @@ Route::post('/supabase/staff-profile', function (Request $request) {
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
                 'Prefer' => 'resolution=merge-duplicates,return=representation',
-            ])->post("{$supabaseUrl}/rest/v1/staff?on_conflict=auth_user_id", $payloadForSupabase);
+            ])->post("{$supabaseUrl}/rest/v1/staff?on_conflict=auth_users_id", $payloadForSupabase);
 
             if (! $fallbackResponse->failed()) {
                 return response()->json([
@@ -1639,8 +1648,8 @@ Route::get('/supabase/staff-check', function (Request $request) {
         'Authorization' => 'Bearer '.$serviceKey,
         'Accept' => 'application/json',
     ])->get("{$supabaseUrl}/rest/v1/staff", [
-        'select' => 'auth_user_id,is_approved,is_active',
-        'auth_user_id' => 'eq.'.$userId,
+        'select' => 'auth_users_id,is_approved,is_active',
+        'auth_users_id' => 'eq.'.$userId,
     ]);
 
     if ($response->failed()) {
@@ -1815,7 +1824,7 @@ $getParentData = function (Request $request) use ($makeParentQrToken) {
                 'Accept' => 'application/json',
             ])->get("{$supabaseUrl}/rest/v1/parents", [
                 'select' => 'id,first_name,middle_name,last_name,phone_number,relationship',
-                'auth_user_id' => 'eq.'.urlencode((string) ($user['id'] ?? '')),
+                'auth_users_id' => 'eq.'.urlencode((string) ($user['id'] ?? '')),
             ]);
 
             if ($parentResponse->failed() || empty($parentResponse->json())) {
@@ -1853,7 +1862,7 @@ $getParentData = function (Request $request) use ($makeParentQrToken) {
                         'Prefer' => 'return=representation',
                     ])->post("{$supabaseUrl}/rest/v1/parents", [
                         ...NameParts::split($parentName),
-                        'auth_user_id' => $user['id'] ?? null,
+                        'auth_users_id' => $user['id'] ?? null,
                         'mobile_number' => $mobileNumber,
                         'relationship' => $relationship_meta,
                     ]);
@@ -1893,15 +1902,15 @@ $getParentData = function (Request $request) use ($makeParentQrToken) {
                                 abort(502, 'Unable to restore a linked student association. Please contact the school administrator.');
                             }
                             $linkRows[] = [
-                                'parent_id' => $parentId,
-                                'student_id' => $metadataStudentId,
+                                'parents_id' => $parentId,
+                                'students_id' => $metadataStudentId,
                                 'relationship' => $relationship,
                             ];
                         }
                     }
 
                     $studentIds = collect($linkRows)
-                        ->pluck('student_id')
+                        ->pluck('students_id')
                         ->map(fn ($id): int => (int) $id)
                         ->unique()
                         ->values();
@@ -1924,7 +1933,7 @@ $getParentData = function (Request $request) use ($makeParentQrToken) {
 
                     $availableStudents = collect($linkRows)
                         ->map(function (array $link) use ($students): ?array {
-                            $linkedStudent = $students->get((int) ($link['student_id'] ?? 0));
+                            $linkedStudent = $students->get((int) ($link['students_id'] ?? 0));
                             if (! is_array($linkedStudent)) {
                                 return null;
                             }
@@ -2008,8 +2017,8 @@ Route::get('/parent/pickup-history', function (Request $request) use ($getParent
             'Authorization' => 'Bearer '.$serviceKey,
             'Accept' => 'application/json',
         ])->get("{$supabaseUrl}/rest/v1/pickups", [
-            'select' => 'id,student_id,picked_at',
-            'student_id' => 'eq.'.(string) $studentId,
+            'select' => 'id,students_id,picked_at',
+            'students_id' => 'eq.'.(string) $studentId,
             'order' => 'picked_at.desc',
         ]);
 
@@ -2113,7 +2122,7 @@ Route::post('/parent/profile/update', function (Request $request) use ($getParen
 
     $existingParentSearch = [
         'select' => 'id',
-        'auth_user_id' => 'eq.'.($user['id'] ?? ''),
+        'auth_users_id' => 'eq.'.($user['id'] ?? ''),
     ];
 
     $parentResponse = null;
@@ -2165,13 +2174,13 @@ Route::post('/parent/profile/update', function (Request $request) use ($getParen
             $supabaseUrl,
             $serviceKey,
             $parentProfile['id'],
-            $link['student_id'],
+            $link['students_id'],
             $relationship
         );
         if ($linkUpdateResponse->failed()) {
             Log::error('Unable to update a parent-student relationship label.', [
                 'parent_id' => $parentProfile['id'],
-                'student_id' => $link['student_id'] ?? null,
+                'student_id' => $link['students_id'] ?? null,
                 'response' => $linkUpdateResponse->body(),
             ]);
 
@@ -2353,14 +2362,14 @@ Route::delete('/supabase/admin/parents/{id}', function ($id, Request $request) {
     }
     $parent = collect($search->json())->first();
 
-    $userId = $parent['auth_user_id'] ?? null;
+    $userId = $parent['auth_users_id'] ?? null;
     if (! empty($userId)) {
         $userDel = Http::withHeaders($headers)
             ->delete("{$supabaseUrl}/auth/v1/admin/users/".urlencode((string) $userId));
         if ($userDel->failed()) {
             Log::error('Unable to delete parent Auth user through the legacy admin endpoint.', [
                 'parent_id' => $id,
-                'auth_user_id' => $userId,
+                'auth_users_id' => $userId,
                 'status' => $userDel->status(),
             ]);
 
@@ -2375,7 +2384,7 @@ Route::delete('/supabase/admin/parents/{id}', function ($id, Request $request) {
     if ($del->failed()) {
         Log::error('Parent Auth user was deleted but the profile could not be removed through the legacy admin endpoint.', [
             'parent_id' => $id,
-            'auth_user_id' => $userId,
+            'auth_users_id' => $userId,
             'status' => $del->status(),
         ]);
 
@@ -2440,7 +2449,7 @@ Route::get('/staff/pickup-records', function () {
         'Authorization' => 'Bearer '.$serviceKey,
         'Accept' => 'application/json',
     ])->get("{$supabaseUrl}/rest/v1/pickups", [
-        'select' => 'id,student_id,parent_id,picked_at,created_at',
+        'select' => 'id,students_id,parents_id,picked_at,created_at',
         'order' => 'picked_at.desc',
         'limit' => '100',
     ]);
@@ -2479,8 +2488,8 @@ Route::get('/staff/pickup-records', function () {
 
         // Map pickups to display format
         $records = collect($pickups)->map(function ($pickup) use ($students, $parents) {
-            $student = $students->get($pickup['student_id']) ?? null;
-            $parent = $parents->get($pickup['parent_id']) ?? null;
+            $student = $students->get($pickup['students_id']) ?? null;
+            $parent = $parents->get($pickup['parents_id'] ?? null) ?? null;
             $studentName = is_array($student) ? NameParts::display($student) : '';
             $studentClass = is_array($student)
                 ? collect([$student['grade_level'] ?? null, $student['section'] ?? null])->filter()->implode(' - ')
@@ -2492,10 +2501,10 @@ Route::get('/staff/pickup-records', function () {
                 'time' => $pickup['picked_at'] ? date('h:i A', strtotime($pickup['picked_at'])) : '-',
                 'date' => $pickup['picked_at'] ? date('M d, Y', strtotime($pickup['picked_at'])) : '-',
                 'student' => $studentName ?: 'Unknown Student',
-                'student_id' => $student['id'] ?? $pickup['student_id'] ?? '-',
+                'student_id' => $student['id'] ?? $pickup['students_id'] ?? '-',
                 'student_class' => $studentClass ?: '-',
                 'guardian' => $guardianName ?: 'No Guardian',
-                'guardian_id' => $parent['id'] ?? ($pickup['parent_id'] ?? '-'),
+                'guardian_id' => $parent['id'] ?? ($pickup['parents_id'] ?? '-'),
                 'verified_by' => 'Staff Scanner',
                 'result' => 'Successful',
                 'picked_at' => $pickup['picked_at'] ?? null,
@@ -2539,7 +2548,7 @@ $loadSmsParents = static function (): array {
         return [];
     }
     $linksByParent = collect($linksResponse->json())
-        ->groupBy(fn (array $link): string => (string) ($link['parent_id'] ?? ''));
+        ->groupBy(fn (array $link): string => (string) ($link['parents_id'] ?? ''));
 
     return $parents
         ->map(function (array $parent) use ($linksByParent): array {
@@ -2547,7 +2556,7 @@ $loadSmsParents = static function (): array {
             $parent['sms_phone'] = PhoneNumber::normalize($parent['phone_number'] ?? $parent['mobile_number'] ?? '');
             $parent['student_id'] = $linksByParent
                 ->get((string) ($parent['id'] ?? ''), collect())
-                ->first()['student_id'] ?? null;
+                ->first()['students_id'] ?? null;
 
             return $parent;
         })
@@ -2569,7 +2578,7 @@ $loadSmsStaff = static function (): array {
         'Authorization' => 'Bearer '.$serviceKey,
         'Accept' => 'application/json',
     ])->get("{$supabaseUrl}/rest/v1/staff", [
-        'select' => 'id,auth_user_id,first_name,middle_name,last_name,phone_number,is_active',
+        'select' => 'id,auth_users_id,first_name,middle_name,last_name,phone_number,is_active',
         'order' => 'first_name.asc,last_name.asc',
         'limit' => 500,
     ]);
@@ -2788,7 +2797,7 @@ Route::get('/staff/profile', function (Request $request) {
             if ($userId) {
                 $resp = Http::withHeaders($headers)->get("{$supabaseUrl}/rest/v1/staff", [
                     'select' => '*',
-                    'auth_user_id' => 'eq.'.$userId,
+                    'auth_users_id' => 'eq.'.$userId,
                     'limit' => 1,
                 ]);
 

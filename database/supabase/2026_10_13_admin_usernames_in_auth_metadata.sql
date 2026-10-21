@@ -9,11 +9,11 @@ begin
     from public.admin
     where coalesce(is_active, true)
       and (
-        auth_user_id is null
+        auth_users_id is null
         or not exists (
           select 1
           from auth.users
-          where auth.users.id = public.admin.auth_user_id
+          where auth.users.id = public.admin.auth_users_id
         )
       )
   ) then
@@ -47,7 +47,7 @@ begin
     from public.admin as admin_profile
     join auth.users as auth_user
       on lower(auth_user.email) = lower(admin_profile.username) || '@accounts.orion.invalid'
-     and auth_user.id <> admin_profile.auth_user_id
+     and auth_user.id <> admin_profile.auth_users_id
     where coalesce(admin_profile.is_active, true)
   ) then
     raise exception 'An admin username conflicts with an existing Supabase Auth account. Resolve the duplicate username before migrating.';
@@ -66,7 +66,7 @@ set
   email_confirmed_at = coalesce(auth_user.email_confirmed_at, now()),
   updated_at = now()
 from public.admin as admin_profile
-where admin_profile.auth_user_id = auth_user.id
+where admin_profile.auth_users_id = auth_user.id
   and coalesce(admin_profile.is_active, true);
 
 alter table public.admin

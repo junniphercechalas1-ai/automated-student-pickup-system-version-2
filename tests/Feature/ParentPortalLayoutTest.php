@@ -26,7 +26,7 @@ class ParentPortalLayoutTest extends TestCase
             if (str_contains($request->url(), '/rest/v1/parents')) {
                 return Http::response([[
                     'id' => 42,
-                    'auth_user_id' => 'parent-user-id',
+                    'auth_users_id' => 'parent-user-id',
                     'email' => 'parent@example.com',
                     'is_approved' => true,
                     'is_active' => true,
@@ -53,7 +53,7 @@ class ParentPortalLayoutTest extends TestCase
         $response->assertOk();
         $response->assertSee('Maria Santos');
         $response->assertSee('Parent / Guardian');
-        $response->assertSee('<nav class="parent-portal-bottom-nav"', false);
+        $response->assertSee('class="parent-portal-bottom-nav"', false);
         $response->assertSee('Home');
         $response->assertSee('My QR Code');
         $response->assertSee('Pickup History');

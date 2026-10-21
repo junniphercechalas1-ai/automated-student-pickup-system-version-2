@@ -78,7 +78,7 @@ management flows.
 | `last_name` | Administrator's last name. | `text` (unbounded) | Yes | — | — |
 | `email` | Email value stored on the administrator profile; administrator authentication code may use this value. | `text` (unbounded) | No | — | Unique; also has a separate non-unique `idx_admins_email` index |
 | `is_active` | Indicates whether the administrator profile is active. | `boolean` | Yes | `true` | — |
-| `auth_user_id` | Links the profile to a Supabase Auth user. | `uuid` (128-bit identifier) | Yes | — | `idx_admins_auth_user_id` index; referenced Auth relation not included in the supplied constraint export |
+| `auth_users_id` | Links the profile to a Supabase Auth user. | `uuid` (128-bit identifier) | Yes | — | `idx_admin_auth_users_id` index; foreign key to `auth.users(id)` |
 | `phone_number` | Administrator phone number. | `text` (unbounded) | Yes | — | Partial unique index when not null: `admin_phone_number_unique` |
 
 ## Table: `notifications`
@@ -88,8 +88,8 @@ Stores notification/SMS test and reminder details recorded by the application.
 | Field | Definition | Type / size | Null? | Default | Key / constraint / index |
 |---|---|---|---|---|---|
 | `id` | Unique notification record identifier. | `uuid` (128-bit identifier) | No | `gen_random_uuid()` | Primary key |
-| `auth_user_id` | Optional recipient/owner Supabase Auth user. | `uuid` (128-bit identifier) | Yes | — | Foreign key to `auth.users(id)`; delete sets this field to null |
-| `student_id` | Optional student associated with the notification. | `bigint` (signed 64-bit integer) | Yes | — | Foreign key to `students(id)`; delete sets this field to null |
+| `auth_users_id` | Optional recipient/owner Supabase Auth user. | `uuid` (128-bit identifier) | Yes | — | Foreign key to `auth.users(id)`; delete sets this field to null |
+| `students_id` | Optional student associated with the notification. | `bigint` (signed 64-bit integer) | Yes | — | Foreign key to `students(id)`; delete sets this field to null |
 | `notification_type` | Category of notification. The application writes `sms_test` and `sms_reminder`. | `text` (unbounded) | No | — | — |
 | `recipient_phone` | Phone number the notification is for, if applicable. | `text` (unbounded) | Yes | — | — |
 | `subject` | Optional notification subject. | `text` (unbounded) | Yes | — | — |
@@ -115,7 +115,7 @@ the `parents_students` junction table.
 | `created_at` | Time the parent profile was created. | `timestamp with time zone` | Yes | `timezone('utc'::text, now())` | — |
 | `updated_at` | Time the parent profile was last updated. | `timestamp with time zone` | Yes | `timezone('utc'::text, now())` | — |
 | `is_active` | Indicates whether the parent profile is active. | `boolean` | Yes | `true` | — |
-| `auth_user_id` | Supabase Auth account linked to this parent profile. | `uuid` (128-bit identifier) | Yes | — | Foreign key to `auth.users(id)`; delete cascades to this parent row; partial unique index `idx_parents_auth_user_id` when not null |
+| `auth_users_id` | Supabase Auth account linked to this parent profile. | `uuid` (128-bit identifier) | Yes | — | Foreign key to `auth.users(id)`; delete cascades to this parent row; partial unique index `idx_parents_auth_users_id` when not null |
 | `is_approved` | Indicates whether an administrator approved the parent account. | `boolean` | Yes | `false` | Index `idx_parents_is_approved` |
 
 ## Table: `parents_students`
@@ -128,13 +128,13 @@ the parent's relationship to the student for that association.
 | Field | Definition | Type / size | Null? | Default | Key / constraint / index |
 |---|---|---|---|---|---|
 | `id` | Unique parent-student association identifier. | `bigint` (signed 64-bit integer) | No | — | Primary key |
-| `parent_id` | Parent in this association. | `bigint` (signed 64-bit integer) | No | — | Foreign key to `parents(id)`; delete cascades to this association |
-| `student_id` | Student in this association. | `bigint` (signed 64-bit integer) | No | — | Foreign key to `students(id)`; delete cascades to this association |
+| `parents_id` | Parent in this association. | `bigint` (signed 64-bit integer) | No | — | Foreign key to `parents(id)`; delete cascades to this association |
+| `students_id` | Student in this association. | `bigint` (signed 64-bit integer) | No | — | Foreign key to `students(id)`; delete cascades to this association |
 | `relationship` | Optional relationship label for this parent-student association. | `text` (unbounded) | Yes | — | — |
 | `created_at` | Time the association was created. | `timestamp with time zone` | No | `now()` | — |
 | `updated_at` | Time the association was last updated. | `timestamp with time zone` | No | `now()` | — |
 
-The pair `(parent_id, student_id)` has a composite unique constraint, so the
+The pair `(parents_id, students_id)` has a composite unique constraint, so the
 same parent-student association cannot be inserted twice.
 
 ## Table: `pickups`
@@ -144,8 +144,8 @@ Stores student pickup scan/confirmation events.
 | Field | Definition | Type / size | Null? | Default | Key / constraint / index |
 |---|---|---|---|---|---|
 | `id` | Unique pickup event identifier. | `bigint` (signed 64-bit integer) | No | — | Primary key |
-| `student_id` | Student involved in the pickup. | `bigint` (signed 64-bit integer) | No | — | Foreign key to `students(id)`; deleting a student cascades to pickup records |
-| `parent_id` | Parent/guardian associated with the pickup, when supplied by the scan. | `bigint` (signed 64-bit integer) | Yes | — | No foreign-key constraint was present in the supplied constraint results |
+| `students_id` | Student involved in the pickup. | `bigint` (signed 64-bit integer) | No | — | Foreign key to `students(id)`; deleting a student cascades to pickup records |
+| `parents_id` | Parent/guardian associated with the pickup, when supplied by the scan. | `bigint` (signed 64-bit integer) | Yes | — | Foreign key to `parents(id)` in the project schema; verify the live database constraint |
 | `picked_at` | Date and time the pickup was recorded. | `timestamp with time zone` | No | — | — |
 | `created_at` | Time the pickup row was created. | `timestamp with time zone` | Yes | `timezone('utc'::text, now())` | — |
 
@@ -174,6 +174,7 @@ profile identifier is also the linked Supabase Auth user identifier.
 | Field | Definition | Type / size | Null? | Default | Key / constraint / index |
 |---|---|---|---|---|---|
 | `id` | Staff profile identifier and linked Supabase Auth user ID. | `uuid` (128-bit identifier) | No | — | Primary key and foreign key to `auth.users(id)`; delete cascades to this staff row |
+| `auth_users_id` | Explicit Supabase Auth account link used for staff profile lookups. | `uuid` (128-bit identifier) | Yes | — | Foreign key to `auth.users(id)`; partial unique index `idx_staff_auth_users_id` |
 | `first_name` | Staff member's first name. | `text` (unbounded) | Yes | — | — |
 | `middle_name` | Staff member's middle name. | `text` (unbounded) | Yes | — | — |
 | `last_name` | Staff member's last name. | `text` (unbounded) | Yes | — | — |
@@ -210,13 +211,13 @@ database, even where their function is already described above.
 | `admin` | `admin_phone_number_unique` | Unique `phone_number` values when not null |
 | `admin` | `admins_email_key` | Unique `email` |
 | `admin` | `admins_pkey` | Primary key on `id` |
-| `admin` | `idx_admins_auth_user_id` | Lookup by `auth_user_id` |
+| `admin` | `idx_admins_auth_users_id` | Lookup by `auth_users_id` |
 | `admin` | `idx_admins_email` | Lookup by `email`; overlaps the unique email index |
 | `notifications` | `notifications_pkey1` | Primary key on `id` |
-| `parents` | `idx_parents_auth_user_id` | Unique `auth_user_id` values when not null |
+| `parents` | `idx_parents_auth_users_id` | Unique `auth_users_id` values when not null |
 | `parents` | `idx_parents_is_approved` | Lookup/filter by `is_approved` |
 | `parents` | `parents_pkey` | Primary key on `id` |
-| `parents_students` | `parents_students_parent_id_student_id_key` | Unique pair `(parent_id, student_id)` |
+| `parents_students` | `parents_students_parents_id_students_id_key` | Unique pair `(parents_id, students_id)` |
 | `parents_students` | `parents_students_pkey` | Primary key on `id` |
 | `pickups` | `pickups_pkey` | Primary key on `id` |
 | `sms_queue` | `sms_queue_pending_created_at_idx` | `created_at` for rows where `status = 'pending'` |
@@ -259,19 +260,20 @@ including statistics for names, phone numbers, or SMS message content.
    exist in the live `public` schema, are legacy code, or should be removed
    from the application.
 3. The parent/student relationship is many-to-many through `parents_students`.
-   Before removing the legacy `parents.student_id` column from a database,
-   run `database/supabase/2026_10_14_parent_student_junction.sql` immediately
-   before and again immediately after deploying the junction-table application
-   changes. This catches legacy links written during rollout. Then run
-   `database/supabase/2026_10_14_drop_legacy_parent_student_id.sql` to remove
-   the obsolete column; that script refuses to continue if any legacy link is
-   still missing from the junction.
+   For an existing Supabase database, run
+   `database/supabase/2026_10_21_rename_student_foreign_keys_to_students_id.sql`
+   in the Supabase SQL Editor before deploying the application changes that use
+   `students_id` and `parents_id`.
+   If the legacy `parents.student_id` column still exists, run
+   `database/supabase/2026_10_14_parent_student_junction.sql` to backfill links
+   after the rename, then run
+   `database/supabase/2026_10_14_drop_legacy_parent_student_id.sql` only after
+   its validation succeeds.
 4. The `bigint` `id` fields in `parents`, `parents_students`, `pickups`, and
    `students` had no `column_default` in the supplied export. Check PostgreSQL
    identity metadata and test the insert flow to confirm how these IDs are
    generated.
-5. The supplied constraints list did not show a foreign key from
-   `pickups.parent_id` to `parents.id`.
+5. Confirm the live foreign key from `pickups.parents_id` to `parents.id`.
 6. Check the overlapping email indexes on `admin` and `staff` with the
    database owner before removing any; this dictionary records them but does
    not recommend schema changes.

@@ -9,7 +9,7 @@ use Tests\TestCase;
 
 class AdminSupabaseLoginTest extends TestCase
 {
-    public function test_admin_login_uses_supabase_auth_when_auth_user_id_is_present(): void
+    public function test_admin_login_uses_supabase_auth_when_auth_users_id_is_present(): void
     {
         putenv('VITE_SUPABASE_URL=https://example.supabase.co');
         putenv('VITE_SUPABASE_ANON_KEY=test-anon-key');
@@ -28,7 +28,7 @@ class AdminSupabaseLoginTest extends TestCase
                 [
                     'id' => '2d9df428-9249-421f-abdd-a186f877728',
                     'phone_number' => '+639171234567',
-                    'auth_user_id' => '11111111-1111-1111-1111-111111111111',
+                    'auth_users_id' => '11111111-1111-1111-1111-111111111111',
                     'first_name' => 'Admin',
                     'last_name' => 'Administrator',
                     'is_active' => true,
@@ -54,7 +54,7 @@ class AdminSupabaseLoginTest extends TestCase
             && ($request->data()['email'] ?? null) === 'adminuser@accounts.orion.invalid'
             && ! array_key_exists('phone', $request->data()));
         Http::assertSent(fn ($request) => str_contains($request->url(), '/rest/v1/admin?')
-            && ($request->data()['auth_user_id'] ?? null) === 'eq.11111111-1111-1111-1111-111111111111'
+            && ($request->data()['auth_users_id'] ?? null) === 'eq.11111111-1111-1111-1111-111111111111'
             && ! array_key_exists('username', $request->data()));
     }
 
@@ -74,7 +74,7 @@ class AdminSupabaseLoginTest extends TestCase
             if (str_contains($request->url(), '/rest/v1/admin?') && $request->method() === 'GET') {
                 return Http::response([[
                     'id' => 'admin-profile-id',
-                    'auth_user_id' => 'admin-auth-id',
+                    'auth_users_id' => 'admin-auth-id',
                     'username' => 'adminuser',
                     'email' => 'admin@example.com',
                     'phone_number' => '+639171234567',
@@ -130,7 +130,7 @@ class AdminSupabaseLoginTest extends TestCase
             if (str_contains($request->url(), '/rest/v1/admin?') && $request->method() === 'GET') {
                 return Http::response([[
                     'id' => 'admin-profile-id',
-                    'auth_user_id' => 'admin-auth-id',
+                    'auth_users_id' => 'admin-auth-id',
                     'username' => 'adminuser',
                     'email' => 'admin@example.com',
                     'phone_number' => '+639171234567',
@@ -207,7 +207,7 @@ class AdminSupabaseLoginTest extends TestCase
                     'id' => 'admin-profile-id',
                     'email' => 'admin@example.com',
                     'phone_number' => '+639171234568',
-                    'auth_user_id' => 'admin-auth-id',
+                    'auth_users_id' => 'admin-auth-id',
                     'password_hash' => Hash::make('OldPassword123!'),
                     'is_active' => true,
                 ]], 200);
@@ -265,7 +265,7 @@ class AdminSupabaseLoginTest extends TestCase
                 return Http::response([[
                     'id' => 'admin-profile-id',
                     'phone_number' => '+639171234569',
-                    'auth_user_id' => null,
+                    'auth_users_id' => null,
                     'password_hash' => Hash::make('OldPassword123!'),
                     'is_active' => true,
                 ]], 200);
@@ -307,7 +307,7 @@ class AdminSupabaseLoginTest extends TestCase
                 return Http::response([[
                     'id' => 'admin-profile-id',
                     'phone_number' => '+639171234567',
-                    'auth_user_id' => 'admin-auth-id',
+                    'auth_users_id' => 'admin-auth-id',
                     'is_active' => true,
                 ]], 200);
             }

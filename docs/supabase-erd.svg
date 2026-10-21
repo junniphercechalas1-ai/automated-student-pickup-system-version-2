@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="980" viewBox="0 0 1500 980" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1100" viewBox="0 0 1500 1100" role="img" aria-labelledby="title desc">
   <title id="title">Automated Student Pickup Verification System entity relationship diagram</title>
   <desc id="desc">Entity relationship diagram generated from SUPABASE_SCHEMA.sql. Parents and students relate through the parents_students junction table. Students relate to pickups. Staff relates to Supabase auth users.</desc>
   <defs>
@@ -29,18 +29,20 @@
     </style>
   </defs>
 
-  <rect class="canvas" width="1500" height="980"/>
+  <rect class="canvas" width="1500" height="1100"/>
   <text class="title" x="70" y="68">Supabase Entity Relationship Diagram</text>
   <text class="subtitle" x="70" y="98">Automated Student Pickup Verification System | Generated from SUPABASE_SCHEMA.sql</text>
 
   <!-- Relationships are drawn behind the table cards. -->
   <path class="relation" d="M440 386 C520 386 560 520 625 520"/>
   <path class="relation" d="M100 450 C55 450 55 610 100 610"/>
+  <path class="relation" d="M100 450 C28 465 28 745 100 800"/>
   <path class="relation" d="M440 570 C520 570 550 390 625 390"/>
   <path class="relation" d="M995 275 C1070 275 1110 275 1190 275"/>
   <path class="relation" d="M1200 390 C1200 360 1200 350 1200 330"/>
   <text class="relation-label" x="478" y="445">1 to many</text>
   <text class="relation-label" x="58" y="525">1 to many</text>
+  <text class="relation-label" x="31" y="730">1 to many</text>
   <text class="relation-label" x="477" y="490">1 to many</text>
   <text class="relation-label" x="1030" y="258">1 to 1</text>
   <text class="relation-label" x="1220" y="365">1 to 1</text>
@@ -65,7 +67,7 @@
     <path class="header" d="M625 182 Q625 175 632 175 H988 Q995 175 995 182 V219 H625 Z"/>
     <text class="table-name" x="647" y="203">parents</text>
     <text class="key" x="647" y="247">PK</text><text class="field" x="680" y="247">id</text><text class="type" x="895" y="247">bigint</text>
-    <text class="key" x="647" y="275">FK</text><text class="field" x="680" y="275">auth_user_id</text><text class="type" x="895" y="275">uuid nullable</text>
+    <text class="key" x="647" y="275">FK</text><text class="field" x="680" y="275">auth_users_id</text><text class="type" x="895" y="275">uuid nullable</text>
     <text class="field" x="647" y="303">is_approved</text><text class="type" x="895" y="303">boolean</text>
     <text class="field" x="647" y="331">first_name, middle_name</text><text class="type" x="895" y="331">text</text>
     <text class="field" x="647" y="359">last_name</text><text class="type" x="895" y="359">text</text>
@@ -82,8 +84,8 @@
     <path class="header" d="M100 537 Q100 530 107 530 H433 Q440 530 440 537 V574 H100 Z"/>
     <text class="table-name" x="122" y="558">parents_students</text>
     <text class="key" x="122" y="602">PK</text><text class="field" x="155" y="602">id</text><text class="type" x="350" y="602">bigint</text>
-    <text class="key" x="122" y="630">FK</text><text class="field" x="155" y="630">parent_id</text><text class="type" x="350" y="630">bigint</text>
-    <text class="key" x="122" y="658">FK</text><text class="field" x="155" y="658">student_id</text><text class="type" x="350" y="658">bigint</text>
+    <text class="key" x="122" y="630">FK</text><text class="field" x="155" y="630">parents_id</text><text class="type" x="350" y="630">bigint</text>
+    <text class="key" x="122" y="658">FK</text><text class="field" x="155" y="658">students_id</text><text class="type" x="350" y="658">bigint</text>
     <text class="field" x="122" y="686">relationship, timestamps</text><text class="type" x="350" y="686">text / timestamptz</text>
   </g>
 
@@ -93,8 +95,8 @@
     <path class="header" d="M625 527 Q625 520 632 520 H988 Q995 520 995 527 V564 H625 Z"/>
     <text class="table-name" x="647" y="548">pickups</text>
     <text class="key" x="647" y="592">PK</text><text class="field" x="680" y="592">id</text><text class="type" x="895" y="592">bigint</text>
-    <text class="key" x="647" y="620">FK</text><text class="field" x="680" y="620">student_id</text><text class="type" x="895" y="620">bigint not null</text>
-    <text class="key" x="647" y="648">FK</text><text class="field" x="680" y="648">parent_id</text><text class="type" x="895" y="648">bigint nullable</text>
+    <text class="key" x="647" y="620">FK</text><text class="field" x="680" y="620">students_id</text><text class="type" x="895" y="620">bigint not null</text>
+    <text class="key" x="647" y="648">FK</text><text class="field" x="680" y="648">parents_id</text><text class="type" x="895" y="648">bigint nullable</text>
     <text class="field" x="647" y="676">picked_at</text><text class="type" x="895" y="676">timestamptz</text>
     <text class="field" x="647" y="704">created_at</text><text class="type" x="895" y="704">timestamptz</text>
   </g>
@@ -111,7 +113,7 @@
 
   <!-- staff -->
   <g>
-    <rect class="table" x="1000" y="390" width="350" height="298" rx="7"/>
+    <rect class="table" x="1000" y="390" width="350" height="326" rx="7"/>
     <path class="header" d="M1000 397 Q1000 390 1007 390 H1343 Q1350 390 1350 397 V434 H1000 Z"/>
     <text class="table-name" x="1022" y="418">staff</text>
     <text class="key" x="1022" y="462">PK/FK</text><text class="field" x="1080" y="462">id</text><text class="type" x="1250" y="462">uuid</text>
@@ -122,6 +124,7 @@
     <text class="field" x="1022" y="602">is_approved</text><text class="type" x="1250" y="602">boolean</text>
     <text class="field" x="1022" y="630">role, is_active</text><text class="type" x="1250" y="630">text / boolean</text>
     <text class="field" x="1022" y="658">created_at</text><text class="type" x="1250" y="658">timestamptz</text>
+    <text class="key" x="1022" y="686">FK</text><text class="field" x="1080" y="686">auth_users_id</text><text class="type" x="1250" y="686">uuid nullable</text>
   </g>
 
   <!-- admins -->
@@ -137,11 +140,25 @@
     <text class="field" x="647" y="912">is_active</text><text class="type" x="895" y="912">boolean</text>
   </g>
 
+  <!-- notifications -->
+  <g>
+    <rect class="table" x="100" y="750" width="340" height="280" rx="7"/>
+    <path class="header-log" d="M100 757 Q100 750 107 750 H433 Q440 750 440 757 V794 H100 Z"/>
+    <text class="table-name" x="122" y="778">notifications</text>
+    <text class="key" x="122" y="822">PK</text><text class="field" x="155" y="822">id</text><text class="type" x="350" y="822">uuid</text>
+    <text class="key" x="122" y="850">FK</text><text class="field" x="155" y="850">students_id</text><text class="type" x="350" y="850">bigint nullable</text>
+    <text class="key" x="122" y="878">FK</text><text class="field" x="155" y="878">auth_users_id</text><text class="type" x="350" y="878">uuid nullable</text>
+    <text class="field" x="122" y="906">notification_type</text><text class="type" x="350" y="906">text</text>
+    <text class="field" x="122" y="934">recipient_phone</text><text class="type" x="350" y="934">text nullable</text>
+    <text class="field" x="122" y="962">message</text><text class="type" x="350" y="962">text</text>
+    <text class="field" x="122" y="990">sent_at, created_at</text><text class="type" x="350" y="990">timestamptz</text>
+  </g>
+
   <rect class="note" x="1030" y="735" width="410" height="115" rx="6"/>
   <text class="note-text" x="1050" y="765">Schema notes</text>
   <text class="note-text" x="1050" y="790">- parent/student links use parents_students</text>
   <text class="note-text" x="1050" y="813">- staff.id references auth.users(id) and cascades</text>
   <text class="note-text" x="1050" y="836">- staff approval is controlled by is_approved</text>
 
-  <text class="legend" x="70" y="950">PK = primary key | FK = foreign key | arrows point to the referenced parent record</text>
+  <text class="legend" x="70" y="1070">PK = primary key | FK = foreign key | arrows point to the referenced parent record</text>
 </svg>

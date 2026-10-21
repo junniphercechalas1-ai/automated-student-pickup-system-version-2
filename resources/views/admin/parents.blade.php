@@ -411,14 +411,15 @@
                     }
                 });
 
-                if (response.ok) {
-                    loadParents();
-                } else {
-                    alert('Error deleting parent');
+                if (!response.ok) {
+                    const payload = await response.json().catch(() => ({}));
+                    throw new Error(payload.error || payload.message || 'Unable to delete parent from Supabase.');
                 }
+
+                await loadParents();
             } catch (error) {
                 console.error('Error:', error);
-                alert('Error deleting parent');
+                alert(error instanceof Error ? error.message : 'Unable to delete parent from Supabase.');
             }
         }
     }

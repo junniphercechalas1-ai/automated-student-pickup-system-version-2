@@ -11,9 +11,9 @@ class ParentStudentLinks
     {
         return self::request($supabaseUrl, $serviceKey)
             ->get("{$supabaseUrl}/rest/v1/parents_students", [
-                'select' => 'parent_id,student_id,relationship',
-                'parent_id' => 'eq.'.$parentId,
-                'order' => 'student_id.asc',
+                'select' => 'parents_id,students_id,relationship',
+                'parents_id' => 'eq.'.$parentId,
+                'order' => 'students_id.asc',
             ]);
     }
 
@@ -26,9 +26,9 @@ class ParentStudentLinks
 
         return self::request($supabaseUrl, $serviceKey)
             ->get("{$supabaseUrl}/rest/v1/parents_students", [
-                'select' => 'parent_id,student_id,relationship',
-                'parent_id' => 'in.('.implode(',', $parentIds).')',
-                'order' => 'student_id.asc',
+                'select' => 'parents_id,students_id,relationship',
+                'parents_id' => 'in.('.implode(',', $parentIds).')',
+                'order' => 'students_id.asc',
             ]);
     }
 
@@ -41,9 +41,9 @@ class ParentStudentLinks
     ): Response {
         return self::request($supabaseUrl, $serviceKey)
             ->withHeaders(['Prefer' => 'resolution=merge-duplicates,return=representation'])
-            ->post("{$supabaseUrl}/rest/v1/parents_students?on_conflict=parent_id,student_id", [[
-                'parent_id' => (int) $parentId,
-                'student_id' => (int) $studentId,
+            ->post("{$supabaseUrl}/rest/v1/parents_students?on_conflict=parents_id,students_id", [[
+                'parents_id' => (int) $parentId,
+                'students_id' => (int) $studentId,
                 'relationship' => $relationship,
             ]]);
     }
@@ -55,8 +55,8 @@ class ParentStudentLinks
         int|string $studentId
     ): Response {
         return self::request($supabaseUrl, $serviceKey)
-            ->delete("{$supabaseUrl}/rest/v1/parents_students?parent_id=eq.".urlencode((string) $parentId)
-                .'&student_id=eq.'.urlencode((string) $studentId));
+            ->delete("{$supabaseUrl}/rest/v1/parents_students?parents_id=eq.".urlencode((string) $parentId)
+                .'&students_id=eq.'.urlencode((string) $studentId));
     }
 
     private static function request(string $supabaseUrl, string $serviceKey)

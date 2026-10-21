@@ -57,21 +57,21 @@ class ConfirmLegacyPhoneAccountsTest extends TestCase
         Http::fake(function ($request) {
             if (str_contains($request->url(), '/rest/v1/parents')) {
                 parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
-                if (($query['select'] ?? null) === 'auth_user_id,phone_number') {
+                if (($query['select'] ?? null) === 'auth_users_id,phone_number') {
                     return Http::response([
                         'message' => "Could not find the 'phone_number' column",
                     ], 400);
                 }
 
                 return Http::response([[
-                    'auth_user_id' => 'parent-user-1',
+                    'auth_users_id' => 'parent-user-1',
                     'mobile_number' => '09170001111',
                 ]], 200);
             }
 
             if (str_contains($request->url(), '/rest/v1/staff')) {
                 return Http::response([[
-                    'auth_user_id' => 'staff-user-1',
+                    'auth_users_id' => 'staff-user-1',
                     'phone_number' => '+639170002222',
                 ]], 200);
             }

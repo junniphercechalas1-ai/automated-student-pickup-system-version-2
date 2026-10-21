@@ -71,11 +71,11 @@ class SupabasePhoneLoginTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_staff_authorization_check_uses_auth_user_id(): void
+    public function test_staff_authorization_check_uses_auth_users_id(): void
     {
         Http::fake([
             'https://example.supabase.co/rest/v1/staff*' => Http::response([
-                ['auth_user_id' => 'staff-auth-user-1', 'is_approved' => true, 'is_active' => true],
+                ['auth_users_id' => 'staff-auth-user-1', 'is_approved' => true, 'is_active' => true],
             ], 200),
         ]);
 
@@ -85,7 +85,7 @@ class SupabasePhoneLoginTest extends TestCase
 
         Http::assertSent(function ($request) {
             return str_contains($request->url(), '/rest/v1/staff')
-                && ($request->data()['auth_user_id'] ?? null) === 'eq.staff-auth-user-1'
+                && ($request->data()['auth_users_id'] ?? null) === 'eq.staff-auth-user-1'
                 && ! array_key_exists('email', $request->data());
         });
     }

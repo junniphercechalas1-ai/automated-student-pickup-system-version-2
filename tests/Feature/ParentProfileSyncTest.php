@@ -68,8 +68,11 @@ class ParentProfileSyncTest extends TestCase
 
             $link = $request->data()[0] ?? [];
 
-            return $link['parent_id'] === 42
-                && in_array($link['student_id'], [13, 14], true)
+            return str_contains($request->url(), 'on_conflict=parents_id,students_id')
+                && $link['parents_id'] === 42
+                && ! array_key_exists('student_id', $link)
+                && ! array_key_exists('parent_id', $link)
+                && in_array($link['students_id'], [13, 14], true)
                 && $link['relationship'] === 'Mother';
         });
     }
@@ -150,8 +153,8 @@ class ParentProfileSyncTest extends TestCase
         Http::fake(function ($request) {
             if (str_contains($request->url(), '/rest/v1/parents_students')) {
                 return Http::response([
-                    ['parent_id' => 42, 'student_id' => 13],
-                    ['parent_id' => 42, 'student_id' => 14],
+                    ['parents_id' => 42, 'students_id' => 13],
+                    ['parents_id' => 42, 'students_id' => 14],
                 ], 200);
             }
             if (str_contains($request->url(), '/rest/v1/parents')) {
@@ -267,7 +270,7 @@ class ParentProfileSyncTest extends TestCase
                 ['id' => 'auth-user-123', 'is_approved' => false, 'is_active' => true],
             ], 200),
             'https://example.supabase.co/rest/v1/parents*' => Http::response([
-                ['id' => 99, 'auth_user_id' => 'auth-user-123', 'is_approved' => true, 'is_active' => true],
+                ['id' => 99, 'auth_users_id' => 'auth-user-123', 'is_approved' => true, 'is_active' => true],
             ], 200),
         ]);
 
@@ -303,7 +306,7 @@ class ParentProfileSyncTest extends TestCase
         Http::fake([
             'https://example.supabase.co/rest/v1/staff*' => Http::response([], 200),
             'https://example.supabase.co/rest/v1/parents*' => Http::response([
-                ['id' => 99, 'auth_user_id' => 'auth-user-123', 'is_approved' => true, 'is_active' => true],
+                ['id' => 99, 'auth_users_id' => 'auth-user-123', 'is_approved' => true, 'is_active' => true],
             ], 200),
         ]);
 

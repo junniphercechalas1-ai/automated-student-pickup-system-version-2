@@ -68,7 +68,7 @@ class PendingRegistrationApprovalTest extends TestCase
         Http::assertSent(fn ($request) => str_contains($request->url(), '/rest/v1/staff')
             && $request->method() === 'POST'
             && $request->data()['id'] === 'approved-staff-id'
-            && $request->data()['auth_user_id'] === 'approved-staff-id'
+            && $request->data()['auth_users_id'] === 'approved-staff-id'
             && $request->data()['is_approved'] === true
             && ! array_key_exists('email', $request->data()));
         $this->assertDatabaseMissing('pending_registrations', ['id' => $registrationId]);
@@ -100,7 +100,7 @@ class PendingRegistrationApprovalTest extends TestCase
             }
 
             if (str_contains($request->url(), '/rest/v1/parents') && $request->method() === 'POST') {
-                return Http::response([['id' => 82, 'auth_user_id' => 'approved-parent-id']], 201);
+                return Http::response([['id' => 82, 'auth_users_id' => 'approved-parent-id']], 201);
             }
 
             return Http::response([], 200);
@@ -124,7 +124,7 @@ class PendingRegistrationApprovalTest extends TestCase
         Http::assertSent(fn ($request) => str_contains($request->url(), '/rest/v1/parents')
             && ! str_contains($request->url(), '/rest/v1/parents_students')
             && $request->method() === 'POST'
-            && $request->data()['auth_user_id'] === 'approved-parent-id'
+            && $request->data()['auth_users_id'] === 'approved-parent-id'
             && $request->data()['is_approved'] === true
             && ! array_key_exists('student_id', $request->data())
             && ! array_key_exists('email', $request->data()));
@@ -135,8 +135,8 @@ class PendingRegistrationApprovalTest extends TestCase
 
             $link = $request->data()[0] ?? [];
 
-            return ($link['parent_id'] ?? null) === 82
-                && in_array($link['student_id'] ?? null, [17, 18], true);
+            return ($link['parents_id'] ?? null) === 82
+                && in_array($link['students_id'] ?? null, [17, 18], true);
         });
         $this->assertDatabaseMissing('pending_registrations', ['id' => $registrationId]);
     }
@@ -174,7 +174,7 @@ class PendingRegistrationApprovalTest extends TestCase
             }
 
             if (str_contains($request->url(), '/rest/v1/parents') && $request->method() === 'POST') {
-                return Http::response([['id' => 83, 'auth_user_id' => 'orphan-parent-id']], 201);
+                return Http::response([['id' => 83, 'auth_users_id' => 'orphan-parent-id']], 201);
             }
 
             return Http::response([], 200);
@@ -198,7 +198,7 @@ class PendingRegistrationApprovalTest extends TestCase
         Http::assertSent(fn ($request) => str_contains($request->url(), '/rest/v1/parents')
             && ! str_contains($request->url(), '/rest/v1/parents_students')
             && $request->method() === 'POST'
-            && $request->data()['auth_user_id'] === 'orphan-parent-id'
+            && $request->data()['auth_users_id'] === 'orphan-parent-id'
             && $request->data()['is_approved'] === true);
         $this->assertDatabaseMissing('pending_registrations', ['id' => $registrationId]);
     }
@@ -292,7 +292,7 @@ class PendingRegistrationApprovalTest extends TestCase
             if (str_contains($request->url(), '/rest/v1/parents')) {
                 return Http::response([[
                     'id' => 41,
-                    'auth_user_id' => 'parent-auth-id',
+                    'auth_users_id' => 'parent-auth-id',
                     'first_name' => 'Echo',
                     'middle_name' => null,
                     'last_name' => 'Holland',
@@ -338,7 +338,7 @@ class PendingRegistrationApprovalTest extends TestCase
             if (str_contains($request->url(), '/rest/v1/staff')) {
                 return Http::response([[
                     'id' => 'staff-auth-id',
-                    'auth_user_id' => 'staff-auth-id',
+                    'auth_users_id' => 'staff-auth-id',
                     'first_name' => 'Alex',
                     'last_name' => 'Staff',
                     'is_approved' => true,
@@ -394,9 +394,15 @@ class PendingRegistrationApprovalTest extends TestCase
             if (str_contains($request->url(), '/rest/v1/parents') && $request->method() === 'GET') {
                 return Http::response([[
                     'id' => 42,
-                    'auth_user_id' => 'parent-auth-id',
+                    'auth_users_id' => 'parent-auth-id',
                     'phone_number' => '+639171234572',
                 ]], 200);
+            }
+
+            if ($request->method() === 'DELETE'
+                && (str_contains($request->url(), '/rest/v1/parents?id=eq.42')
+                    || str_contains($request->url(), '/rest/v1/staff?id=eq.staff-auth-id'))) {
+                return Http::response([['id' => str_contains($request->url(), '/rest/v1/parents') ? 42 : 'staff-auth-id']], 200);
             }
 
             return Http::response([], 204);
@@ -423,7 +429,7 @@ class PendingRegistrationApprovalTest extends TestCase
             if (str_contains($request->url(), '/rest/v1/staff') && $request->method() === 'GET') {
                 return Http::response([[
                     'id' => 'staff-auth-id',
-                    'auth_user_id' => 'staff-auth-id',
+                    'auth_users_id' => 'staff-auth-id',
                     'email' => null,
                     'phone_number' => '+639171234573',
                 ]], 200);
@@ -453,7 +459,7 @@ class PendingRegistrationApprovalTest extends TestCase
             if (str_contains($request->url(), '/rest/v1/parents') && $request->method() === 'GET') {
                 return Http::response([[
                     'id' => 43,
-                    'auth_user_id' => 'parent-auth-id',
+                    'auth_users_id' => 'parent-auth-id',
                     'phone_number' => '+639171234574',
                     'is_approved' => false,
                 ]], 200);
@@ -476,7 +482,7 @@ class PendingRegistrationApprovalTest extends TestCase
             if (str_contains($request->url(), '/rest/v1/staff') && $request->method() === 'GET') {
                 return Http::response([[
                     'id' => 'staff-auth-id',
-                    'auth_user_id' => 'staff-auth-id',
+                    'auth_users_id' => 'staff-auth-id',
                     'email' => null,
                     'phone_number' => '+639171234575',
                     'is_approved' => false,

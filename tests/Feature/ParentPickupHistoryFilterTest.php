@@ -28,10 +28,18 @@ class ParentPickupHistoryFilterTest extends TestCase
                 return Http::response([], 200);
             }
 
-            if (str_contains($request->url(), '/rest/v1/parents')) {
+            if (str_contains($request->url(), '/rest/v1/parents_students')) {
+                return Http::response([[
+                    'parents_id' => 23,
+                    'students_id' => 7,
+                    'relationship' => 'Guardian',
+                ]], 200);
+            }
+
+            if (str_contains($request->url(), '/rest/v1/parents') && ! str_contains($request->url(), '/rest/v1/parents_students')) {
                 return Http::response([[
                     'id' => 23,
-                    'auth_user_id' => 'parent-user-id',
+                    'auth_users_id' => 'parent-user-id',
                     'student_id' => 7,
                     'first_name' => 'Jordan',
                     'middle_name' => null,
@@ -57,7 +65,7 @@ class ParentPickupHistoryFilterTest extends TestCase
             if (str_contains($request->url(), '/rest/v1/pickups')) {
                 return Http::response([[
                     'id' => 15,
-                    'student_id' => 7,
+                    'students_id' => 7,
                     'picked_at' => '2026-10-06T02:09:00+00:00',
                 ]], 200);
             }

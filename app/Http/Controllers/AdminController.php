@@ -74,7 +74,7 @@ class AdminController extends Controller
 
         foreach ($studentIds as $studentId) {
             $existingRelationship = $existingLinks
-                ->first(fn (array $link): bool => (int) ($link['student_id'] ?? 0) === $studentId)['relationship'] ?? null;
+                ->first(fn (array $link): bool => (int) ($link['students_id'] ?? 0) === $studentId)['relationship'] ?? null;
             $response = ParentStudentLinks::upsert(
                 $supabaseUrl,
                 $serviceKey,
@@ -88,7 +88,7 @@ class AdminController extends Controller
         }
 
         $desired = $studentIds->map(fn (int $studentId): string => (string) $studentId);
-        foreach ($existingLinks->pluck('student_id') as $existingStudentId) {
+        foreach ($existingLinks->pluck('students_id') as $existingStudentId) {
             if (! $desired->contains((string) $existingStudentId)) {
                 $response = ParentStudentLinks::delete($supabaseUrl, $serviceKey, $parentId, $existingStudentId);
                 if ($response->failed()) {
@@ -374,7 +374,7 @@ class AdminController extends Controller
                 Log::warning('A pending registration matched an incompatible existing Auth account.', [
                     'registration_id' => $id,
                     'role' => $role,
-                    'auth_user_id' => $existingAuthUser['id'],
+                    'auth_users_id' => $existingAuthUser['id'],
                 ]);
                 DB::table('pending_registrations')->where('id', $id)->update(['status' => 'pending', 'updated_at' => now()]);
 
@@ -441,13 +441,13 @@ class AdminController extends Controller
             $existingProfileResponse = Http::withHeaders($this->getHeaders())
                 ->get("{$supabaseUrl}/rest/v1/parents", [
                     'select' => 'id',
-                    'auth_user_id' => 'eq.'.$authUserId,
+                    'auth_users_id' => 'eq.'.$authUserId,
                     'limit' => 1,
                 ]);
             if ($existingProfileResponse->failed()) {
                 Log::error('Unable to check for an existing parent profile during approval.', [
                     'registration_id' => $id,
-                    'auth_user_id' => $authUserId,
+                    'auth_users_id' => $authUserId,
                     'response' => $existingProfileResponse->body(),
                 ]);
                 DB::table('pending_registrations')->where('id', $id)->update(['status' => 'pending', 'updated_at' => now()]);
@@ -460,7 +460,7 @@ class AdminController extends Controller
 
             $profileResponse = saveParentProfileToSupabase($supabaseUrl, $serviceKey, [
                 ...NameParts::split((string) ($details['full_name'] ?? '')),
-                'auth_user_id' => $authUserId,
+                'auth_users_id' => $authUserId,
                 'phone_number' => (string) $registration->phone_number,
                 'relationship' => (string) ($details['relationship'] ?? ''),
 
@@ -471,13 +471,13 @@ class AdminController extends Controller
             $existingProfileResponse = Http::withHeaders($this->getHeaders())
                 ->get("{$supabaseUrl}/rest/v1/staff", [
                     'select' => 'id',
-                    'auth_user_id' => 'eq.'.$authUserId,
+                    'auth_users_id' => 'eq.'.$authUserId,
                     'limit' => 1,
                 ]);
             if ($existingProfileResponse->failed()) {
                 Log::error('Unable to check for an existing staff profile during approval.', [
                     'registration_id' => $id,
-                    'auth_user_id' => $authUserId,
+                    'auth_users_id' => $authUserId,
                     'response' => $existingProfileResponse->body(),
                 ]);
                 DB::table('pending_registrations')->where('id', $id)->update(['status' => 'pending', 'updated_at' => now()]);
@@ -488,7 +488,7 @@ class AdminController extends Controller
             $hasExistingProfile = is_array($existingProfile);
             $profilePayload = [
                 'id' => $authUserId,
-                'auth_user_id' => $authUserId,
+                'auth_users_id' => $authUserId,
                     ...NameParts::split((string) ($details['full_name'] ?? '')),
                     'phone_number' => (string) $registration->phone_number,
                     'is_approved' => true,
@@ -497,7 +497,7 @@ class AdminController extends Controller
             $staffRequest = Http::withHeaders($this->getHeaders())
                 ->withHeaders(['Prefer' => 'return=representation']);
             $profileResponse = $hasExistingProfile
-                ? $staffRequest->patch("{$supabaseUrl}/rest/v1/staff?auth_user_id=eq.".urlencode($authUserId), $profilePayload)
+                ? $staffRequest->patch("{$supabaseUrl}/rest/v1/staff?auth_users_id=eq.".urlencode($authUserId), $profilePayload)
                 : $staffRequest->post("{$supabaseUrl}/rest/v1/staff", $profilePayload);
         }
 
@@ -511,7 +511,7 @@ class AdminController extends Controller
             if ($deleteAuthResponse && $deleteAuthResponse->failed()) {
                 Log::error('Approved account profile creation failed and the new Auth user could not be rolled back.', [
                     'registration_id' => $id,
-                    'auth_user_id' => $authUserId,
+                    'auth_users_id' => $authUserId,
                     'role' => $role,
                     'profile_response' => $profileResponse->body(),
                     'rollback_response' => $deleteAuthResponse->body(),
@@ -525,7 +525,7 @@ class AdminController extends Controller
             if ($reusedAuthUser) {
                 Log::error('A reused Auth account was updated but its profile could not be created or updated.', [
                     'registration_id' => $id,
-                    'auth_user_id' => $authUserId,
+                    'auth_users_id' => $authUserId,
                     'role' => $role,
                     'profile_response' => $profileResponse->body(),
                 ]);
@@ -618,7 +618,7 @@ class AdminController extends Controller
                 Log::error('Declined account Auth user could not be deleted.', [
                     'table' => $table,
                     'profile_id' => $id,
-                    'auth_user_id' => $authUserId,
+                    'auth_users_id' => $authUserId,
                     'response' => $authDeleteResponse->body(),
                 ]);
 
@@ -633,7 +633,7 @@ class AdminController extends Controller
             Log::error('Declined account Auth user was deleted but its profile cleanup failed.', [
                 'table' => $table,
                 'profile_id' => $id,
-                'auth_user_id' => $authUserId,
+                'auth_users_id' => $authUserId,
                 'response' => $deleteProfileResponse->body(),
             ]);
 
@@ -683,7 +683,7 @@ class AdminController extends Controller
         $admin = $this->findSupabaseAdminByAuthUserId($authUserId);
         if (! $admin || ! $admin->is_active) {
             Log::warning('Admin login rejected: Auth user has no active admin profile.', [
-                'auth_user_id' => $authUserId,
+                'auth_users_id' => $authUserId,
             ]);
 
             return back()->withErrors(['username' => 'Invalid username or password.'])->withInput();
@@ -797,7 +797,7 @@ class AdminController extends Controller
             return response()->json(['message' => 'Admin password reset is not configured.'], 503);
         }
 
-        if (empty($admin->auth_user_id)) {
+        if (empty($admin->auth_users_id)) {
             Log::error('Admin password reset rejected because the profile is not linked to a Supabase Auth user.', [
                 'admin_id' => $admin->id,
             ]);
@@ -807,7 +807,7 @@ class AdminController extends Controller
 
         $authUpdate = Http::withHeaders($this->getHeaders())
             ->timeout(10)
-            ->put("{$supabaseUrl}/auth/v1/admin/users/".urlencode((string) $admin->auth_user_id), [
+            ->put("{$supabaseUrl}/auth/v1/admin/users/".urlencode((string) $admin->auth_users_id), [
                 'password' => $validated['password'],
             ]);
         if ($authUpdate->failed()) {
@@ -947,7 +947,7 @@ class AdminController extends Controller
             $parentLookup = collect($parents)->keyBy(fn ($parent) => (string) ($parent['id'] ?? ''));
 
             $parentIdsByStudent = collect($parentLinksResponse->json())
-                ->groupBy(fn (array $link) => (string) ($link['student_id'] ?? ''));
+                ->groupBy(fn (array $link) => (string) ($link['students_id'] ?? ''));
 
             $students = collect($students)->map(function (array $student) use ($parentLookup, $parentIdsByStudent): array {
                 $student = $this->decorateName($student);
@@ -955,7 +955,7 @@ class AdminController extends Controller
                     ->map(fn ($parentId) => (string) $parentId);
                 $parentIds = $parentIds->merge(
                     $parentIdsByStudent->get((string) ($student['id'] ?? ''), collect())
-                        ->pluck('parent_id')
+                        ->pluck('parents_id')
                         ->map(fn ($parentId) => (string) $parentId)
                 )->unique()->values();
 
@@ -1067,10 +1067,20 @@ class AdminController extends Controller
 
         /** @var \Illuminate\Http\Client\Response $response */
         $response = Http::withHeaders($this->getHeaders())
+            ->withHeaders(['Prefer' => 'return=representation'])
             ->delete("{$supabaseUrl}/rest/v1/students?id=eq.{$id}");
 
         if ($response->failed()) {
-            return response()->json(['error' => 'Failed to delete student'], 500);
+            Log::error('Unable to delete student profile from Supabase.', [
+                'student_id' => $id,
+                'status' => $response->status(),
+            ]);
+
+            return response()->json(['error' => $response->json('message') ?? 'Failed to delete student from Supabase.'], 502);
+        }
+
+        if (! is_array($response->json()) || $response->json() === []) {
+            return response()->json(['error' => 'Student was not found in Supabase; no record was deleted.'], 404);
         }
 
         return response()->json(['message' => 'Student deleted successfully']);
@@ -1142,14 +1152,14 @@ class AdminController extends Controller
                 ], 502);
             }
             $linksByParent = collect($parentLinksResponse->json())
-                ->groupBy(fn (array $link): string => (string) ($link['parent_id'] ?? ''));
+                ->groupBy(fn (array $link): string => (string) ($link['parents_id'] ?? ''));
             $parentUsernamesById = $this->authUsernamesById(
-                $parentsData->pluck('auth_user_id')->all(),
+                $parentsData->pluck('auth_users_id')->all(),
                 'parent profiles'
             );
 
             $parents = $parentsData->map(function (array $parent) use ($students, $linksByParent, $parentUsernamesById): array {
-                $parent['username'] = $parentUsernamesById[(string) ($parent['auth_user_id'] ?? '')] ?? null;
+                $parent['username'] = $parentUsernamesById[(string) ($parent['auth_users_id'] ?? '')] ?? null;
 
                 $phoneNumber = $parent['phone_number'] ?? $parent['mobile_number'] ?? null;
                 if (in_array(strtolower(trim((string) $phoneNumber)), ['null', 'undefined'], true)) {
@@ -1160,7 +1170,7 @@ class AdminController extends Controller
                 $linkedStudents = $linksByParent
                     ->get((string) ($parent['id'] ?? ''), collect())
                     ->map(function (array $link) use ($students): ?array {
-                        $student = $students->get($link['student_id'] ?? null);
+                        $student = $students->get($link['students_id'] ?? null);
                         if (! is_array($student)) {
                             return null;
                         }
@@ -1200,7 +1210,7 @@ class AdminController extends Controller
                     return $this->decorateName([
                         'id' => $registration['id'],
                         'parent_id' => $registration['id'],
-                        'auth_user_id' => null,
+                        'auth_users_id' => null,
                         ...$nameParts,
                         'student_ids' => is_array($studentIds) ? $studentIds : [],
                         'student_id' => $studentIds[0] ?? $details['student_id'] ?? null,
@@ -1332,7 +1342,7 @@ class AdminController extends Controller
             }
 
             if (! (bool) $data['is_approved']) {
-                return $this->deleteDeclinedAccount('parents', $id, 'auth_user_id', 'parent', $smsService);
+                return $this->deleteDeclinedAccount('parents', $id, 'auth_users_id', 'parent', $smsService);
             }
         }
 
@@ -1391,7 +1401,7 @@ class AdminController extends Controller
                 if ($currentLinksResponse->failed()) {
                     return response()->json(['error' => 'Parent details were updated, but their student relationships could not be loaded.'], 502);
                 }
-                $studentIds = collect($currentLinksResponse->json())->pluck('student_id')->all();
+                $studentIds = collect($currentLinksResponse->json())->pluck('students_id')->all();
             }
 
             $linkError = $this->syncParentStudentLinks(
@@ -1444,7 +1454,7 @@ class AdminController extends Controller
 
         $profileResponse = Http::withHeaders($this->getHeaders())
             ->get("{$supabaseUrl}/rest/v1/parents", [
-                'select' => 'id,auth_user_id',
+                'select' => 'id,auth_users_id',
                 'id' => 'eq.'.urlencode($id),
                 'limit' => 1,
             ]);
@@ -1463,15 +1473,15 @@ class AdminController extends Controller
             return response()->json(['error' => 'Parent account not found.'], 404);
         }
 
-        $authUserId = $parent['auth_user_id'] ?? null;
+        $authUserId = $parent['auth_users_id'] ?? null;
         if (is_string($authUserId) && $authUserId !== '') {
             $authDeleteResponse = Http::withHeaders($this->getHeaders())
                 ->delete("{$supabaseUrl}/auth/v1/admin/users/".urlencode($authUserId));
 
-            if ($authDeleteResponse->failed()) {
+            if ($authDeleteResponse->failed() && $authDeleteResponse->status() !== 404) {
                 Log::error('Unable to delete parent Auth user.', [
                     'parent_id' => $id,
-                    'auth_user_id' => $authUserId,
+                    'auth_users_id' => $authUserId,
                     'status' => $authDeleteResponse->status(),
                 ]);
 
@@ -1482,12 +1492,13 @@ class AdminController extends Controller
         }
 
         $profileDeleteResponse = Http::withHeaders($this->getHeaders())
+            ->withHeaders(['Prefer' => 'return=representation'])
             ->delete("{$supabaseUrl}/rest/v1/parents?id=eq.".urlencode($id));
 
         if ($profileDeleteResponse->failed()) {
             Log::error('Parent Auth user was deleted but the parent profile could not be removed.', [
                 'parent_id' => $id,
-                'auth_user_id' => $authUserId,
+                'auth_users_id' => $authUserId,
                 'status' => $profileDeleteResponse->status(),
             ]);
 
@@ -1496,9 +1507,33 @@ class AdminController extends Controller
             ], 502);
         }
 
+        if (! is_array($profileDeleteResponse->json()) || $profileDeleteResponse->json() === []) {
+            $remainingProfileResponse = Http::withHeaders($this->getHeaders())
+                ->get("{$supabaseUrl}/rest/v1/parents", [
+                    'select' => 'id',
+                    'id' => 'eq.'.urlencode($id),
+                    'limit' => 1,
+                ]);
+
+            if ($remainingProfileResponse->failed() || $remainingProfileResponse->json() !== []) {
+                Log::error('Unable to confirm parent profile deletion in Supabase.', [
+                    'parent_id' => $id,
+                    'auth_users_id' => $authUserId,
+                    'status' => $remainingProfileResponse->status(),
+                ]);
+
+                return response()->json([
+                    'error' => 'The parent sign-in account was deleted, but the parent profile could not be confirmed as removed. Refresh the list and retry if the profile remains.',
+                ], 502);
+            }
+        }
+
+        $authUserDeleted = is_string($authUserId) && $authUserId !== ''
+            && $authDeleteResponse->status() !== 404;
+
         return response()->json([
             'message' => 'Parent account and linked sign-in account deleted successfully.',
-            'auth_user_deleted' => is_string($authUserId) && $authUserId !== '',
+            'auth_user_deleted' => $authUserDeleted,
         ]);
     }
 
@@ -1576,9 +1611,9 @@ class AdminController extends Controller
             }
 
             $staffRecords = collect($response->json());
-            $staffUsernamesById = $this->authUsernamesById($staffRecords->pluck('auth_user_id')->all(), 'staff profiles');
+            $staffUsernamesById = $this->authUsernamesById($staffRecords->pluck('auth_users_id')->all(), 'staff profiles');
             $staff = $staffRecords->map(function (array $member) use ($staffUsernamesById): array {
-                $member['username'] = $staffUsernamesById[(string) ($member['auth_user_id'] ?? '')] ?? null;
+                $member['username'] = $staffUsernamesById[(string) ($member['auth_users_id'] ?? '')] ?? null;
 
                 return $this->decorateName($member);
             });
@@ -1624,7 +1659,7 @@ class AdminController extends Controller
             }
 
             if (! (bool) $data['is_approved']) {
-                return $this->deleteDeclinedAccount('staff', $id, 'auth_user_id', 'staff', $smsService);
+                return $this->deleteDeclinedAccount('staff', $id, 'auth_users_id', 'staff', $smsService);
             }
         }
 
@@ -1686,7 +1721,7 @@ class AdminController extends Controller
 
         $staffResponse = Http::withHeaders($this->getHeaders())
             ->get("{$supabaseUrl}/rest/v1/staff", [
-                'select' => 'id,auth_user_id,is_approved',
+                'select' => 'id,auth_users_id,is_approved',
                 'id' => 'eq.'.urlencode($id),
                 'limit' => 1,
             ]);
@@ -1709,7 +1744,7 @@ class AdminController extends Controller
             return response()->json(['error' => 'Only approved staff accounts can be deleted.'], 422);
         }
 
-        $authUserId = (string) ($staff['auth_user_id'] ?? '');
+        $authUserId = (string) ($staff['auth_users_id'] ?? '');
         if ($authUserId === '') {
             return response()->json(['error' => 'Staff profile has no linked Supabase Auth user.'], 409);
         }
@@ -1717,10 +1752,10 @@ class AdminController extends Controller
         $deleteAuthResponse = Http::withHeaders($this->getHeaders())
             ->delete("{$supabaseUrl}/auth/v1/admin/users/".urlencode($authUserId));
 
-        if ($deleteAuthResponse->failed()) {
+        if ($deleteAuthResponse->failed() && $deleteAuthResponse->status() !== 404) {
             Log::error('Unable to delete staff Auth user.', [
                 'staff_id' => $id,
-                'auth_user_id' => $authUserId,
+                'auth_users_id' => $authUserId,
                 'status' => $deleteAuthResponse->status(),
             ]);
 
@@ -1730,18 +1765,40 @@ class AdminController extends Controller
         }
 
         $deleteProfileResponse = Http::withHeaders($this->getHeaders())
+            ->withHeaders(['Prefer' => 'return=representation'])
             ->delete("{$supabaseUrl}/rest/v1/staff?id=eq.".urlencode($id));
 
         if ($deleteProfileResponse->failed()) {
             Log::error('Staff Auth user was deleted but the staff profile could not be removed.', [
                 'staff_id' => $id,
-                'auth_user_id' => $authUserId,
+                'auth_users_id' => $authUserId,
                 'status' => $deleteProfileResponse->status(),
             ]);
 
             return response()->json([
                 'error' => 'The staff sign-in account was deleted, but the profile could not be removed. Contact an administrator.',
             ], 502);
+        }
+
+        if (! is_array($deleteProfileResponse->json()) || $deleteProfileResponse->json() === []) {
+            $remainingProfileResponse = Http::withHeaders($this->getHeaders())
+                ->get("{$supabaseUrl}/rest/v1/staff", [
+                    'select' => 'id',
+                    'id' => 'eq.'.urlencode($id),
+                    'limit' => 1,
+                ]);
+
+            if ($remainingProfileResponse->failed() || $remainingProfileResponse->json() !== []) {
+                Log::error('Unable to confirm staff profile deletion in Supabase.', [
+                    'staff_id' => $id,
+                    'auth_users_id' => $authUserId,
+                    'status' => $remainingProfileResponse->status(),
+                ]);
+
+                return response()->json([
+                    'error' => 'The staff sign-in account was deleted, but the staff profile could not be confirmed as removed. Refresh the list and retry if the profile remains.',
+                ], 502);
+            }
         }
 
         return response()->json(['message' => 'Staff account deleted successfully.']);
@@ -1757,7 +1814,7 @@ class AdminController extends Controller
         /** @var \Illuminate\Http\Client\Response $response */
         $response = Http::withHeaders($this->getHeaders())
             ->get("{$supabaseUrl}/rest/v1/pickups", [
-                'select' => 'id,student_id,picked_at,students(id,first_name,middle_name,last_name,grade_level,section)',
+                'select' => 'id,students_id,parents_id,picked_at,students(id,first_name,middle_name,last_name,grade_level,section)',
                 'order' => 'picked_at.desc',
             ]);
 
@@ -1765,7 +1822,14 @@ class AdminController extends Controller
             return response()->json(['error' => 'Failed to fetch pickups'], 500);
         }
 
-        $pickups = $response->json();
+        $pickups = collect($response->json())->map(function (array $pickup): array {
+            $pickup['student_id'] = $pickup['students_id'] ?? null;
+            $pickup['parent_id'] = $pickup['parents_id'] ?? null;
+            unset($pickup['students_id']);
+            unset($pickup['parents_id']);
+
+            return $pickup;
+        })->all();
         $grouped = collect($pickups)->groupBy(function ($pickup) {
             return Carbon::parse($pickup['picked_at'])->setTimezone(config('app.timezone'))->format('Y-m-d');
         });
@@ -1938,14 +2002,14 @@ class AdminController extends Controller
         // so both portals show the same history without duplicating exact rows.
         $pickupsResponse = Http::timeout(10)->withHeaders($this->getHeaders())
             ->get("{$supabaseUrl}/rest/v1/pickups", [
-                'select' => 'id,student_id,parent_id,picked_at',
+                'select' => 'id,students_id,parents_id,picked_at',
                 'order' => 'picked_at.desc',
             ]);
 
         if (! $pickupsResponse->successful()) {
             $pickupsResponse = Http::timeout(10)->withHeaders($this->getHeaders())
                 ->get("{$supabaseUrl}/rest/v1/pickups", [
-                    'select' => 'id,student_id,picked_at',
+                    'select' => 'id,students_id,picked_at',
                     'order' => 'picked_at.desc',
                 ]);
         }
@@ -1965,8 +2029,8 @@ class AdminController extends Controller
                 return [
                     'id' => $pickup['id'] ?? 0,
                     'entry_time' => $pickup['picked_at'] ?? null,
-                    'parent_id' => $pickup['parent_id'] ?? null,
-                    'student_id' => $pickup['student_id'] ?? null,
+                    'parent_id' => $pickup['parents_id'] ?? null,
+                    'student_id' => $pickup['students_id'] ?? null,
                     'verified_by' => 'Staff Scanner',
                     'status' => 'successful',
                     'source' => 'pickups',
@@ -2201,8 +2265,8 @@ class AdminController extends Controller
     {
         $adminId = Session::get('admin_id');
         $admin = $adminId ? $this->findSupabaseAdmin($adminId) : null;
-        $username = $admin && $admin->auth_user_id
-            ? $this->getSupabaseAdminAuthUsername((string) $admin->auth_user_id)
+        $username = $admin && $admin->auth_users_id
+            ? $this->getSupabaseAdminAuthUsername((string) $admin->auth_users_id)
             : null;
 
         return view('admin.profile', ['admin' => $admin, 'username' => $username]);
@@ -2305,7 +2369,7 @@ class AdminController extends Controller
             'new_password' => 'required|string|min:8|confirmed',
         ]);
 
-        if (empty($admin->auth_user_id)) {
+        if (empty($admin->auth_users_id)) {
             Log::error('Admin password change rejected because the profile is not linked to a Supabase Auth user.', [
                 'admin_id' => $admin->id,
             ]);
@@ -2313,7 +2377,7 @@ class AdminController extends Controller
             return back()->withErrors(['password' => 'This administrator account is not linked to Supabase Auth. Contact the system administrator.']);
         }
 
-        $authUsername = $this->getSupabaseAdminAuthUsername((string) $admin->auth_user_id);
+        $authUsername = $this->getSupabaseAdminAuthUsername((string) $admin->auth_users_id);
         if (! $authUsername) {
             return back()->withErrors(['password' => 'Unable to verify the linked Supabase Auth account. Contact the system administrator.']);
         }
@@ -2321,7 +2385,7 @@ class AdminController extends Controller
         $authUser = $this->authenticateSupabaseAdmin(
             UsernameIdentity::authEmail($authUsername),
             $request->current_password,
-            (string) $admin->auth_user_id
+            (string) $admin->auth_users_id
         );
         if (! $authUser) {
             return back()->withErrors(['current_password' => 'Current password is incorrect.']);
@@ -2334,7 +2398,7 @@ class AdminController extends Controller
 
         $authUpdate = Http::withHeaders($this->getHeaders())
             ->timeout(10)
-            ->put("{$supabaseUrl}/auth/v1/admin/users/".urlencode((string) $admin->auth_user_id), [
+            ->put("{$supabaseUrl}/auth/v1/admin/users/".urlencode((string) $admin->auth_users_id), [
                 'password' => $request->new_password,
             ]);
         if ($authUpdate->failed()) {
@@ -2400,7 +2464,7 @@ class AdminController extends Controller
             ->get("{$supabaseUrl}/auth/v1/admin/users/".urlencode($authUserId));
         if ($response->failed()) {
             Log::warning('Unable to fetch linked admin Auth user.', [
-                'auth_user_id' => $authUserId,
+                'auth_users_id' => $authUserId,
                 'status' => $response->status(),
             ]);
 
@@ -2414,7 +2478,7 @@ class AdminController extends Controller
             || ! UsernameIdentity::isValid($username)
             || data_get($authUser, 'user_metadata.role') !== 'admin') {
             Log::warning('Linked admin Auth user has no valid admin username metadata.', [
-                'auth_user_id' => $authUserId,
+                'auth_users_id' => $authUserId,
             ]);
 
             return null;
@@ -2450,7 +2514,7 @@ class AdminController extends Controller
     private function findSupabaseAdminByAuthUserId(string $authUserId): ?Admin
     {
         return $this->findSupabaseAdminWithQuery([
-            'auth_user_id' => 'eq.'.$authUserId,
+            'auth_users_id' => 'eq.'.$authUserId,
         ]);
     }
 

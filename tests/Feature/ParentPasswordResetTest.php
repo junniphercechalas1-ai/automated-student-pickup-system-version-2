@@ -39,7 +39,7 @@ class ParentPasswordResetTest extends TestCase
                 }
 
                 return Http::response([[
-                    'auth_user_id' => 'parent-user-1',
+                    'auth_users_id' => 'parent-user-1',
                     'mobile_number' => '+639171234567',
                 ]], 200);
             }
@@ -134,7 +134,7 @@ class ParentPasswordResetTest extends TestCase
                 }
 
                 return Http::response([[
-                    'auth_user_id' => 'staff-user-1',
+                    'auth_users_id' => 'staff-user-1',
                     'is_approved' => false,
                     'phone_number' => '+639171234568',
                 ]], 200);
@@ -272,7 +272,7 @@ class ParentPasswordResetTest extends TestCase
         Http::fake(function ($request) use (&$otp) {
             if (str_contains($request->url(), '/rest/v1/staff')) {
                 return Http::response([[
-                    'auth_user_id' => 'staff-user-1',
+                    'auth_users_id' => 'staff-user-1',
                     'phone_number' => '+639171234568',
                 ]], 200);
             }
@@ -331,7 +331,7 @@ class ParentPasswordResetTest extends TestCase
         Http::fake(function ($request) use (&$otp) {
             if (str_contains($request->url(), '/rest/v1/staff')) {
                 return Http::response([[
-                    'auth_user_id' => 'staff-user-1',
+                    'auth_users_id' => 'staff-user-1',
                     'phone_number' => '+639171234568',
                 ]], 200);
             }

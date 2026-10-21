@@ -39,7 +39,7 @@ class StaffAuthRedirectTest extends TestCase
         $_SERVER['SUPABASE_SERVICE_KEY'] = 'test-service-key';
         Http::fake([
             'https://example.supabase.co/rest/v1/staff*' => Http::response([
-                ['auth_user_id' => 'staff-user-id', 'is_approved' => true, 'is_active' => true],
+                ['auth_users_id' => 'staff-user-id', 'is_approved' => true, 'is_active' => true],
             ], 200),
         ]);
 
@@ -53,8 +53,8 @@ class StaffAuthRedirectTest extends TestCase
 
         $response->assertStatus(200);
         Http::assertSent(fn ($request) => str_contains($request->url(), '/rest/v1/staff')
-            && ($request->data()['select'] ?? null) === 'auth_user_id,is_approved,is_active'
-            && ($request->data()['auth_user_id'] ?? null) === 'eq.staff-user-id');
+            && ($request->data()['select'] ?? null) === 'auth_users_id,is_approved,is_active'
+            && ($request->data()['auth_users_id'] ?? null) === 'eq.staff-user-id');
     }
 
     public function test_staff_without_an_approved_profile_is_not_redirected_to_parent_login(): void
@@ -90,7 +90,7 @@ class StaffAuthRedirectTest extends TestCase
         Http::fake([
             'https://example.supabase.co/rest/v1/staff*' => Http::response([], 200),
             'https://example.supabase.co/rest/v1/parents*' => Http::response([
-                ['id' => 42, 'auth_user_id' => 'parent-user-id', 'is_approved' => false, 'is_active' => true],
+                ['id' => 42, 'auth_users_id' => 'parent-user-id', 'is_approved' => false, 'is_active' => true],
             ], 200),
         ]);
 
@@ -104,7 +104,7 @@ class StaffAuthRedirectTest extends TestCase
 
         $response->assertRedirect('/parent/login');
         Http::assertSent(fn ($request) => str_contains($request->url(), '/rest/v1/parents')
-            && ($request->data()['select'] ?? null) === 'id,auth_user_id,is_approved,is_active'
-            && ($request->data()['auth_user_id'] ?? null) === 'eq.parent-user-id');
+            && ($request->data()['select'] ?? null) === 'id,auth_users_id,is_approved,is_active'
+            && ($request->data()['auth_users_id'] ?? null) === 'eq.parent-user-id');
     }
 }

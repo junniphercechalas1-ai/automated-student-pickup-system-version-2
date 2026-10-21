@@ -36,7 +36,7 @@ class UsernameLoginTest extends TestCase
             }
 
             if (str_contains($request->url(), '/rest/v1/parents')) {
-                return Http::response([['auth_user_id' => 'parent-auth-id']], 200);
+                return Http::response([['auth_users_id' => 'parent-auth-id']], 200);
             }
 
             return Http::response([], 404);
@@ -53,7 +53,7 @@ class UsernameLoginTest extends TestCase
             && $request->data()['email'] === 'pat.parent@accounts.orion.invalid'
             && $request->data()['password'] === 'secret123');
         Http::assertSent(fn ($request) => str_contains($request->url(), '/rest/v1/parents')
-            && ($request->data()['select'] ?? null) === 'auth_user_id'
+            && ($request->data()['select'] ?? null) === 'auth_users_id'
             && ($request->data()['is_approved'] ?? null) === 'eq.true'
             && ($request->data()['is_active'] ?? null) === 'eq.true');
     }
@@ -104,7 +104,7 @@ class UsernameLoginTest extends TestCase
             ->assertJsonPath('message', 'Invalid username or password.');
     }
 
-    public function test_approved_staff_sign_in_returns_the_verified_auth_user_id(): void
+    public function test_approved_staff_sign_in_returns_the_verified_auth_users_id(): void
     {
         Http::fake(function ($request) {
             if (str_contains($request->url(), '/auth/v1/token')) {
@@ -118,7 +118,7 @@ class UsernameLoginTest extends TestCase
             }
 
             if (str_contains($request->url(), '/rest/v1/staff')) {
-                return Http::response([['auth_user_id' => 'staff-auth-id']], 200);
+                return Http::response([['auth_users_id' => 'staff-auth-id']], 200);
             }
 
             return Http::response([], 404);
@@ -135,7 +135,7 @@ class UsernameLoginTest extends TestCase
             ]);
 
         Http::assertSent(fn ($request) => str_contains($request->url(), '/rest/v1/staff')
-            && ($request->data()['auth_user_id'] ?? null) === 'eq.staff-auth-id'
+            && ($request->data()['auth_users_id'] ?? null) === 'eq.staff-auth-id'
             && ($request->data()['is_approved'] ?? null) === 'eq.true'
             && ($request->data()['is_active'] ?? null) === 'eq.true');
     }

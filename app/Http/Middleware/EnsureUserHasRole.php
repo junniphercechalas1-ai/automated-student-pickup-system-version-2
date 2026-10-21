@@ -57,8 +57,8 @@ class EnsureUserHasRole
                     'Authorization' => 'Bearer '.$serviceKey,
                     'Accept' => 'application/json',
                 ])->get("{$supabaseUrl}/rest/v1/staff", [
-                    'select' => 'auth_user_id,is_approved,is_active',
-                    'auth_user_id' => 'eq.'.(string) $user['id'],
+                    'select' => 'auth_users_id,is_approved,is_active',
+                    'auth_users_id' => 'eq.'.(string) $user['id'],
                 ]);
 
                 if ($staffResponse->ok()) {
@@ -84,8 +84,8 @@ class EnsureUserHasRole
                         'Authorization' => 'Bearer '.$serviceKey,
                         'Accept' => 'application/json',
                     ])->get("{$supabaseUrl}/rest/v1/parents", [
-                        'select' => 'id,auth_user_id,is_approved,is_active',
-                        'auth_user_id' => 'eq.'.(string) $user['id'],
+                        'select' => 'id,auth_users_id,is_approved,is_active',
+                        'auth_users_id' => 'eq.'.(string) $user['id'],
                     ]);
 
                     if ($parentResponse->ok()) {

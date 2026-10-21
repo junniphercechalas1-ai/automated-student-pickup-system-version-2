@@ -1,11 +1,11 @@
 alter table public.admin
-  add column if not exists auth_user_id uuid references auth.users(id) on delete cascade,
+  add column if not exists auth_users_id uuid references auth.users(id) on delete cascade,
   add column if not exists email text,
   add column if not exists username text;
 
-create unique index if not exists idx_admin_auth_user_id
-  on public.admin (auth_user_id)
-  where auth_user_id is not null;
+create unique index if not exists idx_admin_auth_users_id
+  on public.admin (auth_users_id)
+  where auth_users_id is not null;
 
 do $$
 begin
@@ -34,7 +34,7 @@ $$;
 update public.admin as admin_profile
 set phone_number = auth_user.phone
 from auth.users as auth_user
-where admin_profile.auth_user_id = auth_user.id
+where admin_profile.auth_users_id = auth_user.id
   and admin_profile.phone_number is null
   and nullif(auth_user.phone, '') is not null
   and not exists (
@@ -47,7 +47,7 @@ where admin_profile.auth_user_id = auth_user.id
 update public.admin as admin_profile
 set email = auth_user.email
 from auth.users as auth_user
-where admin_profile.auth_user_id = auth_user.id
+where admin_profile.auth_users_id = auth_user.id
   and nullif(trim(admin_profile.email), '') is null
   and nullif(trim(auth_user.email), '') is not null;
 
@@ -60,7 +60,7 @@ with username_bases as (
       else 'admin_' || left(replace(admin_profile.id::text, '-', ''), 8)
     end as username_base
   from public.admin as admin_profile
-  left join auth.users as auth_user on auth_user.id = admin_profile.auth_user_id
+  left join auth.users as auth_user on auth_user.id = admin_profile.auth_users_id
   where admin_profile.username is null
 ),
 ranked_usernames as (
@@ -84,7 +84,7 @@ create unique index if not exists idx_admin_username
   where username is not null;
 
 with phone_matches as (
-  select distinct admin_profile.id as admin_id, auth_user.id as auth_user_id
+  select distinct admin_profile.id as admin_id, auth_user.id as auth_users_id
   from public.admin as admin_profile
   join auth.users as auth_user
     on (
@@ -108,12 +108,12 @@ with phone_matches as (
         else regexp_replace(coalesce(auth_user.phone, ''), '[^0-9]', '', 'g')
       end
     )
-  where admin_profile.auth_user_id is null
+  where admin_profile.auth_users_id is null
     and nullif(regexp_replace(coalesce(admin_profile.phone_number, ''), '[^0-9]', '', 'g'), '') is not null
     and nullif(regexp_replace(coalesce(auth_user.phone, ''), '[^0-9]', '', 'g'), '') is not null
 ),
 unambiguous_matches as (
-  select phone_matches.admin_id, phone_matches.auth_user_id
+  select phone_matches.admin_id, phone_matches.auth_users_id
   from phone_matches
   join (
     select admin_id
@@ -122,14 +122,14 @@ unambiguous_matches as (
     having count(*) = 1
   ) as one_auth_user_per_admin using (admin_id)
   join (
-    select auth_user_id
+    select auth_users_id
     from phone_matches
-    group by auth_user_id
+    group by auth_users_id
     having count(*) = 1
-  ) as one_admin_per_auth_user using (auth_user_id)
+  ) as one_admin_per_auth_user using (auth_users_id)
 )
 update public.admin as admin_profile
-set auth_user_id = unambiguous_matches.auth_user_id
+set auth_users_id = unambiguous_matches.auth_users_id
 from unambiguous_matches
 where admin_profile.id = unambiguous_matches.admin_id
-  and admin_profile.auth_user_id is null;
+  and admin_profile.auth_users_id is null;

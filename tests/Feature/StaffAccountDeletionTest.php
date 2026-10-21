@@ -27,9 +27,13 @@ class StaffAccountDeletionTest extends TestCase
             if ($request->method() === 'GET' && str_contains($request->url(), '/rest/v1/staff')) {
                 return Http::response([[
                     'id' => 'staff-profile-id',
-                    'auth_user_id' => 'staff-auth-id',
+                    'auth_users_id' => 'staff-auth-id',
                     'is_approved' => true,
                 ]], 200);
+            }
+
+            if ($request->method() === 'DELETE' && str_contains($request->url(), '/rest/v1/staff')) {
+                return Http::response([['id' => 'staff-profile-id']], 200);
             }
 
             return Http::response([], 204);
@@ -46,13 +50,43 @@ class StaffAccountDeletionTest extends TestCase
             && str_contains($request->url(), '/rest/v1/staff?id=eq.staff-profile-id'));
     }
 
+    public function test_deleting_staff_accepts_auth_cascade_when_profile_is_already_removed(): void
+    {
+        $staffProfileReadCount = 0;
+
+        Http::fake(function ($request) use (&$staffProfileReadCount) {
+            if ($request->method() === 'GET' && str_contains($request->url(), '/rest/v1/staff')) {
+                $staffProfileReadCount++;
+
+                return Http::response($staffProfileReadCount === 1 ? [[
+                    'id' => 'staff-profile-id',
+                    'auth_users_id' => 'staff-auth-id',
+                    'is_approved' => true,
+                ]] : [], 200);
+            }
+
+            if ($request->method() === 'DELETE' && str_contains($request->url(), '/rest/v1/staff')) {
+                return Http::response([], 200);
+            }
+
+            return Http::response([], 204);
+        });
+
+        $this->withSession(['admin_id' => 'admin-1'])
+            ->deleteJson('/admin/staff/staff-profile-id')
+            ->assertOk()
+            ->assertJsonPath('message', 'Staff account deleted successfully.');
+
+        $this->assertSame(2, $staffProfileReadCount);
+    }
+
     public function test_staff_profile_is_kept_when_auth_user_deletion_fails(): void
     {
         Http::fake(function ($request) {
             if ($request->method() === 'GET' && str_contains($request->url(), '/rest/v1/staff')) {
                 return Http::response([[
                     'id' => 'staff-profile-id',
-                    'auth_user_id' => 'staff-auth-id',
+                    'auth_users_id' => 'staff-auth-id',
                     'is_approved' => true,
                 ]], 200);
             }

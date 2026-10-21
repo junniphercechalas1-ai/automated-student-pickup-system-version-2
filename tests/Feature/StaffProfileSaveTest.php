@@ -58,8 +58,8 @@ class StaffProfileSaveTest extends TestCase
             return str_contains($request->url(), '/rest/v1/staff')
                 && ! empty($request->data()['photo_url'])
                 && str_contains($request->data()['photo_url'], 'staff-profiles')
-                && $request->data()['auth_user_id'] === 'auth-user-123'
-                && str_contains($request->url(), 'on_conflict=auth_user_id')
+                && $request->data()['auth_users_id'] === 'auth-user-123'
+                && str_contains($request->url(), 'on_conflict=auth_users_id')
                 && ! array_key_exists('email', $request->data());
         });
     }

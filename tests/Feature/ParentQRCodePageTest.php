@@ -25,8 +25,8 @@ class ParentQRCodePageTest extends TestCase
 
             if (str_contains($request->url(), '/rest/v1/parents_students')) {
                 return Http::response([[
-                    'parent_id' => 42,
-                    'student_id' => 13,
+                    'parents_id' => 42,
+                    'students_id' => 13,
                     'relationship' => 'Mother',
                 ]], 200);
             }
@@ -44,7 +44,7 @@ class ParentQRCodePageTest extends TestCase
             if (str_contains($request->url(), '/rest/v1/parents')) {
                 return Http::response([[
                     'id' => 42,
-                    'auth_user_id' => 'parent-user-id',
+                    'auth_users_id' => 'parent-user-id',
                     'email' => 'parent@example.com',
                     'is_approved' => true,
                     'is_active' => true,
