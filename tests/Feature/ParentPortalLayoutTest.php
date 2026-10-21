@@ -54,7 +54,7 @@ class ParentPortalLayoutTest extends TestCase
         $response->assertSee('Maria Santos');
         $response->assertSee('Parent / Guardian');
         $response->assertSee('class="parent-portal-bottom-nav"', false);
-        $response->assertSee('Home');
+        $response->assertSee('Dashboard');
         $response->assertSee('My QR Code');
         $response->assertSee('Pickup History');
         $response->assertSee('Profile');
