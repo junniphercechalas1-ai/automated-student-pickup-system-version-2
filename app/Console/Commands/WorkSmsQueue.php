@@ -84,7 +84,7 @@ class WorkSmsQueue extends Command
             }
 
             $queue->complete($id, 'sent', $result['provider_id']);
-            $queue->markNotificationSent(isset($row['notification_id']) ? (string) $row['notification_id'] : null);
+            $queue->markNotificationSent(isset($row['notifications_id']) ? (string) $row['notifications_id'] : null);
             $this->info("SMS queue row {$id} sent.");
 
             if ($this->option('once')) {

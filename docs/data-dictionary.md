@@ -162,6 +162,7 @@ Stores SMS messages waiting for, undergoing, or completing GSM-modem delivery.
 | `provider_id` | Optional message/provider identifier returned after sending. | `text` (unbounded) | Yes | — | — |
 | `error_message` | Optional error detail when sending fails. | `text` (unbounded) | Yes | — | — |
 | `expires_at` | Optional deadline after which a queued message must not be sent. | `timestamp with time zone` | Yes | — | — |
+| `notifications_id` | Optional notification record that created this queued SMS. | `uuid` (128-bit identifier) | Yes | — | Foreign key to `notifications(id)`; delete sets this field to null; index `sms_queue_notifications_id_idx` |
 | `created_at` | Time the message entered the queue; the worker orders pending rows by this field. | `timestamp with time zone` | No | `now()` | Partial index `sms_queue_pending_created_at_idx` for rows with `status = 'pending'` |
 | `claimed_at` | Time a worker claimed the message for processing. | `timestamp with time zone` | Yes | — | — |
 | `completed_at` | Time the worker recorded a sent or failed outcome. | `timestamp with time zone` | Yes | — | — |
@@ -222,6 +223,7 @@ database, even where their function is already described above.
 | `pickups` | `pickups_pkey` | Primary key on `id` |
 | `sms_queue` | `sms_queue_pending_created_at_idx` | `created_at` for rows where `status = 'pending'` |
 | `sms_queue` | `sms_queue_pkey` | Primary key on `id` |
+| `sms_queue` | `sms_queue_notifications_id_idx` | Lookup by linked `notifications_id` |
 | `staff` | `idx_staff_email` | Lookup by `email`; overlaps the unique email index |
 | `staff` | `staff_email_key` | Unique `email` |
 | `staff` | `staff_pkey` | Primary key on `id` |

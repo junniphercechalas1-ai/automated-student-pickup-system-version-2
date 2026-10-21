@@ -24,7 +24,7 @@ class SupabaseSmsQueue
             'created_at' => now()->toIso8601String(),
         ];
         if ($notificationId !== null) {
-            $payload['notification_id'] = $notificationId;
+            $payload['notifications_id'] = $notificationId;
         }
         if ($expiresAt !== null) {
             $payload['expires_at'] = $expiresAt->format(DATE_ATOM);
@@ -79,7 +79,7 @@ class SupabaseSmsQueue
     public function claimNext(): ?array
     {
         $pending = $this->request()->get($this->tableUrl(), [
-            'select' => 'id,recipient_phone,message,expires_at,notification_id',
+            'select' => 'id,recipient_phone,message,expires_at,notifications_id',
             'status' => 'eq.pending',
             'order' => 'created_at.asc',
             'limit' => 20,

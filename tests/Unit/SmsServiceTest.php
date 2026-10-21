@@ -115,7 +115,7 @@ class SmsServiceTest extends TestCase
         Http::assertSent(function ($request): bool {
             return $request->url() === 'https://example.supabase.co/rest/v1/sms_queue'
                 && $request->method() === 'POST'
-                && $request['notification_id'] === 'notification-456'
+                && $request['notifications_id'] === 'notification-456'
                 && $request['recipient_phone'] === '+639171234567';
         });
     }
@@ -133,12 +133,14 @@ class SmsServiceTest extends TestCase
                     'recipient_phone' => '+639171234567',
                     'message' => 'Pickup ready',
                     'expires_at' => null,
+                    'notifications_id' => 'notification-456',
                 ]], 200)
                 ->push([[
                     'id' => 'queue-123',
                     'recipient_phone' => '+639171234567',
                     'message' => 'Pickup ready',
                     'expires_at' => null,
+                    'notifications_id' => 'notification-456',
                 ]], 200)
                 ->push([['id' => 'queue-123']], 200),
         ]);
@@ -148,6 +150,11 @@ class SmsServiceTest extends TestCase
         $queue->complete('queue-123', 'sent');
 
         $this->assertSame('queue-123', $claimed['id']);
+        $this->assertSame('notification-456', $claimed['notifications_id']);
+        Http::assertSent(function ($request): bool {
+            return $request->method() === 'GET'
+                && str_contains($request->url(), 'select=id%2Crecipient_phone%2Cmessage%2Cexpires_at%2Cnotifications_id');
+        });
         Http::assertSent(function ($request): bool {
             return $request->method() === 'PATCH'
                 && str_contains($request->url(), 'status=eq.pending')

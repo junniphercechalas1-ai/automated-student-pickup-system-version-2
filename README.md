@@ -87,11 +87,15 @@ Configure the Render service with `SMS_PROVIDER=supabase_queue`, `SUPABASE_URL`,
 To relate account-decision notifications to their queued SMS, first verify
 that `notifications.id` is a UUID, then run
 [`database/supabase/link_sms_queue_to_notifications.sql`](./database/supabase/link_sms_queue_to_notifications.sql)
-in the Supabase SQL Editor. It adds a nullable foreign key from
-`sms_queue.notification_id` to `notifications.id`; existing queue rows remain
-unlinked. The Laravel app creates the notification before enqueuing its SMS,
-and the local worker records `sent_at` after delivery. Password-reset SMS
-messages are intentionally not copied into `notifications`.
+in the Supabase SQL Editor for a new setup. It adds a nullable foreign key from
+`sms_queue.notifications_id` to `notifications.id`; existing queue rows remain
+unlinked. If you already ran the previous version of this script, do not rerun
+it; run
+[`database/supabase/2026_10_21_rename_notification_foreign_key_to_notifications_id.sql`](./database/supabase/2026_10_21_rename_notification_foreign_key_to_notifications_id.sql)
+to rename `notification_id` and its associated constraint/index. The Laravel
+app creates the notification before enqueuing its SMS, and the local worker
+records `sent_at` after delivery. Password-reset SMS messages are intentionally
+not copied into `notifications`.
 
 On the Windows laptop connected to the GSM modem:
 
