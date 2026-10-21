@@ -79,6 +79,9 @@ class ParentQRCodePageTest extends TestCase
         $response->assertSee('class="parent-qr-hero"', false);
         $response->assertSee('My QR Code');
         $response->assertSee('Present this QR code to the guard or staff at the school gate.');
+        $response->assertSee('Secure pickup access');
+        $response->assertDontSee('parent-qr-hero-illustration', false);
+        $response->assertDontSee('parent-welcome-school', false);
         // Verify back arrow functionality
         $response->assertSee('parent-qr-back-arrow', false);
     }

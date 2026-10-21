@@ -18,38 +18,38 @@
         </div>
     </div>
 
-    <section class="grid gap-6 lg:grid-cols-3">
-        <div class="rounded-[32px] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <div class="mb-4 flex items-center gap-3">
-                <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
+    <section class="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-6">
+        <div class="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:rounded-[32px] sm:p-6">
+            <div class="mb-3 flex items-center gap-2 sm:mb-4 sm:gap-3">
+                <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-600 sm:h-9 sm:w-9">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
                         <path d="M3 12h18"></path>
                         <path d="M12 3v18"></path>
                         <rect x="5" y="5" width="14" height="14" rx="2"></rect>
                     </svg>
                 </div>
-                <p class="text-sm uppercase tracking-[0.28em] text-blue-600 font-semibold">Total Pickups</p>
+                <p class="text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-blue-600 sm:text-sm sm:tracking-[0.28em]">Total Pickups</p>
             </div>
-            <p class="text-4xl font-bold text-slate-950">{{ $totalPickups ?? 0 }}</p>
+            <p class="text-3xl font-bold text-slate-950 sm:text-4xl">{{ $totalPickups ?? 0 }}</p>
             <p class="mt-2 text-xs text-slate-600">{{ empty($pickupRecords) ? 'No records yet' : 'This student' }}</p>
         </div>
 
-        <div class="rounded-[32px] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <div class="mb-4 flex items-center gap-3">
-                <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+        <div class="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:rounded-[32px] sm:p-6">
+            <div class="mb-3 flex items-center gap-2 sm:mb-4 sm:gap-3">
+                <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 sm:h-9 sm:w-9">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
                         <path d="M5 12.5l4 4L19 2.5"></path>
                     </svg>
                 </div>
-                <p class="text-sm uppercase tracking-[0.28em] text-blue-600 font-semibold">Verified</p>
+                <p class="text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-blue-600 sm:text-sm sm:tracking-[0.28em]">Verified</p>
             </div>
-            <p class="text-4xl font-bold text-emerald-600">{{ $verifiedCount ?? 0 }}</p>
+            <p class="text-3xl font-bold text-emerald-600 sm:text-4xl">{{ $verifiedCount ?? 0 }}</p>
             <p class="mt-2 text-xs text-slate-600">{{ ($verifiedCount ?? 0) === 0 ? 'No verified records' : 'Successful pickups' }}</p>
         </div>
 
-        <div class="rounded-[32px] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <div class="mb-4 flex items-center gap-3">
-                <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-100 text-blue-600">
+        <div class="col-span-2 rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:rounded-[32px] sm:p-6 lg:col-span-1">
+            <div class="mb-3 flex items-center gap-2 sm:mb-4 sm:gap-3">
+                <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-blue-600 sm:h-9 sm:w-9">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
                         <rect x="3" y="4" width="18" height="18" rx="2"></rect>
                         <path d="M8 2v4"></path>
@@ -57,7 +57,7 @@
                         <path d="M3 10h18"></path>
                     </svg>
                 </div>
-                <p class="text-sm uppercase tracking-[0.28em] text-blue-600 font-semibold">Last Pickup</p>
+                <p class="text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-blue-600 sm:text-sm sm:tracking-[0.28em]">Last Pickup</p>
             </div>
             @if(! empty($lastPickup))
                 <p class="text-lg font-semibold text-slate-950">{{ $lastPickup['date'] }}</p>

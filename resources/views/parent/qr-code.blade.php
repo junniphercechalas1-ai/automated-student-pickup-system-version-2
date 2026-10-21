@@ -18,21 +18,9 @@
     <section class="parent-qr-hero">
         <div class="parent-qr-hero-content">
             <a href="javascript:history.back()" class="parent-qr-back-arrow" aria-label="Go back">←</a>
+            <p class="parent-qr-eyebrow">Secure pickup access</p>
             <h1>My QR Code</h1>
             <p>Present this QR code to the guard or staff at the school gate.</p>
-        </div>
-        <div class="parent-qr-hero-illustration" aria-hidden="true">
-            <div class="parent-welcome-cloud cloud-one"></div>
-            <div class="parent-welcome-cloud cloud-two"></div>
-            <div class="parent-welcome-school">
-                <div class="school-flag"></div>
-                <div class="school-roof"></div>
-                <div class="school-windows">
-                    <span></span><span></span><span></span><span></span>
-                    <span></span><span></span><span></span><span></span>
-                    <span></span><span></span><span></span><span></span>
-                </div>
-            </div>
         </div>
     </section>
 

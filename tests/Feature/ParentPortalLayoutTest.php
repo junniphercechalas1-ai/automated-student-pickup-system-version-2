@@ -76,7 +76,9 @@ class ParentPortalLayoutTest extends TestCase
         ])->get('/parent/student');
 
         $response->assertOk();
+        $response->assertSee('Parent portal');
         $response->assertSee('Welcome, Maria!');
+        $response->assertDontSee('parent-welcome-school', false);
         $response->assertSee('Your Student');
         $response->assertSee('Authorized Parent');
         $response->assertSee('Quick Actions');

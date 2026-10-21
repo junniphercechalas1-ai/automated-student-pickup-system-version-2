@@ -10,22 +10,9 @@
 
     <section class="parent-welcome-hero">
         <div class="parent-welcome-copy">
+            <p class="parent-welcome-eyebrow">Parent portal</p>
             <h1>Welcome, {{ $parentFirstName }}!</h1>
             <p>Use your QR code at the school gate for a safe and quick entry.</p>
-        </div>
-
-        <div class="parent-welcome-illustration" aria-hidden="true">
-            <div class="parent-welcome-cloud cloud-one"></div>
-            <div class="parent-welcome-cloud cloud-two"></div>
-            <div class="parent-welcome-school">
-                <div class="school-flag"></div>
-                <div class="school-roof"></div>
-                <div class="school-windows">
-                    <span></span><span></span><span></span><span></span>
-                    <span></span><span></span><span></span><span></span>
-                    <span></span><span></span><span></span><span></span>
-                </div>
-            </div>
         </div>
     </section>
 

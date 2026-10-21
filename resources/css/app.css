@@ -872,28 +872,39 @@ body.device-preview-open {
 }
 
 .parent-welcome-hero {
-    display: grid;
-    grid-template-columns: 1.1fr 0.9fr;
-    align-items: center;
-    gap: 1.5rem;
-    background: linear-gradient(180deg, #eaf4fb 0%, #dfeef9 100%);
-    border: 1px solid rgba(148, 163, 184, 0.2);
+    background: linear-gradient(135deg, #f0f7ff 0%, #e2efff 100%);
+    border: 1px solid rgba(59, 130, 246, 0.16);
     border-radius: 2rem;
-    padding: 1.5rem 1.5rem 1.2rem;
+    padding: 2rem 2.25rem;
     margin: 0 0 1.5rem;
+    box-shadow: 0 12px 30px rgba(30, 64, 175, 0.06);
 }
 
 .parent-welcome-copy {
-    padding-left: 0.25rem;
+    max-width: 48rem;
+}
+
+.parent-welcome-eyebrow,
+.parent-qr-eyebrow {
+    margin: 0 0 0.65rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    line-height: 1.4;
+    text-transform: uppercase;
 }
 
 .parent-welcome-copy h1 {
     margin: 0;
-    font-size: clamp(2.25rem, 4vw, 4rem);
+    font-size: clamp(2rem, 4vw, 3rem);
     line-height: 1.05;
     font-weight: 800;
     letter-spacing: -0.04em;
     color: #1f3a5f;
+}
+
+.parent-welcome-eyebrow {
+    color: #2563eb;
 }
 
 .parent-welcome-copy p {
@@ -904,119 +915,13 @@ body.device-preview-open {
     color: #445c79;
 }
 
-.parent-welcome-illustration {
-    position: relative;
-    min-height: 220px;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-}
-
-.parent-welcome-cloud {
-    position: absolute;
-    background: rgba(255, 255, 255, 0.55);
-    border-radius: 999px;
-    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08);
-}
-
-.cloud-one {
-    width: 100px;
-    height: 36px;
-    top: 30px;
-    left: 24%;
-}
-
-.cloud-two {
-    width: 120px;
-    height: 42px;
-    top: 18px;
-    right: 16%;
-}
-
-.parent-welcome-school {
-    position: relative;
-    width: min(100%, 420px);
-    height: 190px;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-}
-
-.school-roof {
-    position: absolute;
-    bottom: 90px;
-    width: 88%;
-    height: 56px;
-    background: #dff2ff;
-    border: 4px solid #8ab9d9;
-    border-bottom: none;
-    border-radius: 12px 12px 0 0;
-    box-shadow: inset 0 0 0 1px rgba(138, 185, 217, 0.2);
-}
-
-.school-flag {
-    position: absolute;
-    bottom: 112px;
-    left: 68%;
-    width: 18px;
-    height: 18px;
-    background: linear-gradient(180deg, #ffffff 0%, #eef6ff 100%);
-    border-radius: 3px;
-    border: 2px solid #8ab9d9;
-    transform: rotate(16deg);
-}
-
-.school-flag::before {
-    content: "";
-    position: absolute;
-    left: -18px;
-    top: 3px;
-    width: 2px;
-    height: 54px;
-    background: #8ab9d9;
-}
-
-.school-windows {
-    position: absolute;
-    bottom: 24px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 0.42rem;
-    width: 68%;
-    padding: 0.6rem 0.8rem 0.75rem;
-    background: rgba(255, 255, 255, 0.6);
-    border: 3px solid #8ab9d9;
-    border-radius: 16px 16px 10px 10px;
-}
-
-.school-windows span {
-    display: block;
-    height: 28px;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.7);
-    border: 2px solid #8ab9d9;
-}
-
 @media (max-width: 768px) {
     .parent-welcome-hero {
-        grid-template-columns: 1fr;
-        text-align: center;
-        padding: 1.25rem 1rem 1rem;
+        padding: 1.5rem;
     }
 
-    .parent-welcome-copy {
-        padding-left: 0;
-    }
-
-    .parent-welcome-copy p {
-        margin-left: auto;
-        margin-right: auto;
-    }
-
-    .parent-welcome-illustration {
-        min-height: 180px;
+    .parent-welcome-copy h1 {
+        font-size: 2rem;
     }
 }
 
@@ -1479,10 +1384,6 @@ body.device-preview-open {
 
 /* QR Code Page Styles */
 .parent-qr-hero {
-    display: grid;
-    grid-template-columns: 1.2fr 0.8fr;
-    align-items: center;
-    gap: 2rem;
     background: linear-gradient(135deg, #003d82 0%, #1e5a96 100%);
     border-radius: 2rem;
     padding: 2.5rem 2rem;
@@ -1490,11 +1391,13 @@ body.device-preview-open {
     color: #ffffff;
     position: relative;
     overflow: hidden;
+    box-shadow: 0 16px 34px rgba(0, 61, 130, 0.16);
 }
 
 .parent-qr-hero-content {
     position: relative;
     z-index: 2;
+    max-width: 48rem;
 }
 
 .parent-qr-back-arrow {
@@ -1511,8 +1414,12 @@ body.device-preview-open {
     color: #ffffff;
 }
 
+.parent-qr-eyebrow {
+    color: #bfdbfe;
+}
+
 .parent-qr-hero h1 {
-    margin: 0.5rem 0 0;
+    margin: 0;
     font-size: clamp(2rem, 4vw, 3.5rem);
     font-weight: 800;
     letter-spacing: -0.03em;
@@ -1524,12 +1431,6 @@ body.device-preview-open {
     font-size: 1rem;
     line-height: 1.6;
     color: rgba(255, 255, 255, 0.9);
-}
-
-.parent-qr-hero-illustration {
-    position: relative;
-    height: 200px;
-    opacity: 0.4;
 }
 
 .parent-qr-info-card {
@@ -1772,13 +1673,7 @@ body.device-preview-open {
 
 @media (max-width: 768px) {
     .parent-qr-hero {
-        grid-template-columns: 1fr;
         padding: 1.5rem;
-        gap: 1rem;
-    }
-
-    .parent-qr-hero-illustration {
-        display: none;
     }
 
     .parent-qr-info-card {
