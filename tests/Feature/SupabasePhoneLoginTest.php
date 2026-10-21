@@ -4,8 +4,6 @@ namespace Tests\Feature;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class SupabasePhoneLoginTest extends TestCase
@@ -90,19 +88,8 @@ class SupabasePhoneLoginTest extends TestCase
         });
     }
 
-    public function test_signup_requires_phone_verification_and_defers_auth_creation_until_approval(): void
+    public function test_signup_requires_phone_verification_and_creates_an_unapproved_staff_profile(): void
     {
-        Schema::create('pending_registrations', function (Blueprint $table): void {
-            $table->uuid('id')->primary();
-            $table->string('role', 20);
-            $table->string('phone_number', 20)->unique();
-            $table->longText('encrypted_password');
-            $table->json('details');
-            $table->string('status', 20)->default('pending');
-            $table->timestamps();
-            $table->index(['role', 'status']);
-        });
-
         $otp = null;
         config([
             'services.sms.driver' => 'twilio',
@@ -119,7 +106,20 @@ class SupabasePhoneLoginTest extends TestCase
                 return Http::response(['sid' => 'SM555'], 201);
             }
             if (str_contains($request->url(), '/auth/v1/admin/users')) {
+                if ($request->method() === 'POST') {
+                    return Http::response(['id' => 'pending-staff-auth-id'], 201);
+                }
+
                 return Http::response(['users' => []], 200);
+            }
+            if (str_contains($request->url(), '/rest/v1/staff') && $request->method() === 'POST') {
+                return Http::response([[
+                    'id' => 'pending-staff-auth-id',
+                    'auth_users_id' => 'pending-staff-auth-id',
+                    'phone_number' => '+639171234568',
+                    'is_approved' => false,
+                    'is_active' => true,
+                ]], 201);
             }
 
             return Http::response([], 200);
@@ -156,15 +156,16 @@ class SupabasePhoneLoginTest extends TestCase
             'role' => 'staff',
             'phone_verification_flow_id' => $flowId,
         ])->assertStatus(202)
-            ->assertJsonPath('message', 'Registration submitted. Your account will be created after administrator approval.');
+            ->assertJsonPath('message', 'Registration submitted. Your account is pending administrator approval before you can sign in.');
 
-        $this->assertDatabaseHas('pending_registrations', [
-            'phone_number' => '+639171234568',
-            'role' => 'staff',
-            'status' => 'pending',
-        ]);
-        Http::assertNotSent(fn ($request) => str_contains($request->url(), '/auth/v1/admin/users')
-            && in_array($request->method(), ['POST', 'PUT'], true));
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/auth/v1/admin/users')
+            && $request->method() === 'POST'
+            && $request->data()['phone'] === '+639171234568'
+            && $request->data()['phone_confirm'] === true);
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/rest/v1/staff')
+            && $request->method() === 'POST'
+            && $request->data()['auth_users_id'] === 'pending-staff-auth-id'
+            && $request->data()['is_approved'] === false);
         $this->assertTrue(Cache::missing('signup-phone-verification:'.$flowId));
     }
 
@@ -233,18 +234,8 @@ class SupabasePhoneLoginTest extends TestCase
         Http::assertNotSent(fn ($request) => str_contains($request->url(), 'api.twilio.com'));
     }
 
-    public function test_registration_rechecks_number_before_creating_pending_request(): void
+    public function test_registration_rechecks_number_before_creating_auth_user(): void
     {
-        Schema::create('pending_registrations', function (Blueprint $table): void {
-            $table->uuid('id')->primary();
-            $table->string('role', 20);
-            $table->string('phone_number', 20)->unique();
-            $table->longText('encrypted_password');
-            $table->json('details');
-            $table->string('status', 20)->default('pending');
-            $table->timestamps();
-            $table->index(['role', 'status']);
-        });
         Cache::put('signup-phone-verification:'.str_repeat('a', 48), [
             'phone' => '+639171234568',
             'account_type' => 'staff',
@@ -273,7 +264,8 @@ class SupabasePhoneLoginTest extends TestCase
         ])->assertStatus(409)
             ->assertJsonPath('message', 'This mobile number is already registered or has a registration awaiting review. Sign in or contact the administrator.');
 
-        $this->assertDatabaseCount('pending_registrations', 0);
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), '/auth/v1/admin/users')
+            && $request->method() === 'POST');
     }
 
     public function test_signup_cannot_create_an_auth_user_without_a_verified_phone(): void

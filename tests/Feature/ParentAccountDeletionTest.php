@@ -3,8 +3,6 @@
 namespace Tests\Feature;
 
 use Illuminate\Support\Facades\Http;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class ParentAccountDeletionTest extends TestCase
@@ -22,10 +20,6 @@ class ParentAccountDeletionTest extends TestCase
             $_SERVER[$key] = $value;
         }
 
-        Schema::create('pending_registrations', function (Blueprint $table): void {
-            $table->uuid('id')->primary();
-            $table->string('role', 20);
-        });
     }
 
     public function test_deleting_parent_also_deletes_its_linked_auth_user(): void

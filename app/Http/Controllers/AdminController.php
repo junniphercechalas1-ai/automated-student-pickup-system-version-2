@@ -6,7 +6,6 @@ use App\Models\Admin;
 use App\Services\SmsService;
 use App\Support\NameParts;
 use App\Support\ParentStudentLinks;
-use App\Support\PendingRegistrationSchema;
 use App\Support\PhoneNumber;
 use App\Support\UsernameIdentity;
 use Carbon\Carbon;
@@ -14,8 +13,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Crypt;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -98,28 +95,6 @@ class AdminController extends Controller
         }
 
         return null;
-    }
-
-    private function pendingRegistrationRows(string $role): array
-    {
-        PendingRegistrationSchema::ensure();
-
-        return DB::table('pending_registrations')
-            ->where('role', $role)
-            ->where('status', 'pending')
-            ->orderBy('created_at')
-            ->get()
-            ->map(function ($registration): array {
-                $details = json_decode((string) $registration->details, true);
-
-                return [
-                    'id' => $registration->id,
-                    'phone_number' => $registration->phone_number,
-                    'details' => is_array($details) ? $details : [],
-                    'created_at' => $registration->created_at,
-                ];
-            })
-            ->all();
     }
 
     private function authUsernamesById(array $userIds, string $context): array
@@ -236,344 +211,6 @@ class AdminController extends Controller
                 : ' SMS notification could not be sent; check SMS configuration and delivery.'),
             'notification_sent' => $notificationSent,
         ]);
-    }
-
-    private function reviewPendingRegistration(string $id, string $role, bool $approved, SmsService $smsService): ?JsonResponse
-    {
-        $registration = DB::table('pending_registrations')
-            ->where('id', $id)
-            ->where('role', $role)
-            ->where('status', 'pending')
-            ->first();
-
-        if (! $registration) {
-            return null;
-        }
-
-        if (! $approved) {
-            DB::table('pending_registrations')->where('id', $id)->delete();
-
-            return $this->accountDecisionResponse(
-                $smsService,
-                (string) $registration->phone_number,
-                $role,
-                false,
-                ucfirst($role).' registration declined and deleted.'
-            );
-        }
-
-        $claimed = DB::table('pending_registrations')
-            ->where('id', $id)
-            ->where('status', 'pending')
-            ->update(['status' => 'processing', 'updated_at' => now()]);
-
-        if ($claimed !== 1) {
-            return response()->json(['error' => 'This registration is already being reviewed. Please refresh and try again.'], 409);
-        }
-
-        $details = json_decode((string) $registration->details, true);
-        if (! is_array($details)) {
-            DB::table('pending_registrations')->where('id', $id)->update(['status' => 'pending', 'updated_at' => now()]);
-
-            return response()->json(['error' => 'The registration details could not be read.'], 500);
-        }
-
-        try {
-            $password = Crypt::decryptString((string) $registration->encrypted_password);
-        } catch (\Illuminate\Contracts\Encryption\DecryptException $exception) {
-            Log::error('Pending registration password could not be decrypted.', [
-                'registration_id' => $id,
-                'role' => $role,
-                'message' => $exception->getMessage(),
-            ]);
-            DB::table('pending_registrations')->where('id', $id)->update(['status' => 'pending', 'updated_at' => now()]);
-
-            return response()->json(['error' => 'Unable to create the account because its encrypted password could not be read.'], 500);
-        }
-
-        $supabaseUrl = $this->supabaseUrl();
-        $serviceKey = $this->serviceKey();
-        if (! $supabaseUrl || ! $serviceKey) {
-            DB::table('pending_registrations')->where('id', $id)->update(['status' => 'pending', 'updated_at' => now()]);
-
-            return response()->json(['error' => 'Supabase configuration is missing'], 500);
-        }
-
-        $metadata = [
-            ...$details,
-            'role' => $role,
-            'phone_number' => (string) $registration->phone_number,
-            'username' => UsernameIdentity::normalize((string) ($details['username'] ?? '')),
-        ];
-        $authEmail = UsernameIdentity::authEmail($metadata['username']);
-        $existingAuthUser = null;
-        $usernameAuthUser = null;
-        $page = 1;
-        do {
-            $usersResponse = Http::withHeaders($this->getHeaders())
-                ->timeout(10)
-                ->get("{$supabaseUrl}/auth/v1/admin/users", [
-                    'page' => $page,
-                    'per_page' => 100,
-                ]);
-
-            if ($usersResponse->failed()) {
-                Log::error('Unable to check for an existing Auth account before approval.', [
-                    'registration_id' => $id,
-                    'role' => $role,
-                    'status' => $usersResponse->status(),
-                    'response' => $usersResponse->body(),
-                ]);
-                DB::table('pending_registrations')->where('id', $id)->update(['status' => 'pending', 'updated_at' => now()]);
-
-                return response()->json(['error' => 'Unable to check for an existing account. Please retry approval.'], 503);
-            }
-
-            $users = $usersResponse->json('users');
-            if (! is_array($users)) {
-                Log::error('Supabase returned an unexpected Auth user list during approval.', [
-                    'registration_id' => $id,
-                    'role' => $role,
-                    'status' => $usersResponse->status(),
-                ]);
-                DB::table('pending_registrations')->where('id', $id)->update(['status' => 'pending', 'updated_at' => now()]);
-
-                return response()->json(['error' => 'Unable to check for an existing account. Please retry approval.'], 503);
-            }
-
-            foreach ($users as $user) {
-                if (! is_array($user) || empty($user['id'])) {
-                    continue;
-                }
-
-                if (strtolower((string) ($user['email'] ?? '')) === $authEmail) {
-                    $usernameAuthUser = $user;
-                }
-
-                if (PhoneNumber::normalize((string) ($user['phone'] ?? '')) === (string) $registration->phone_number) {
-                    $existingAuthUser = $user;
-                }
-            }
-
-            $page++;
-        } while (count($users) === 100 && (! $existingAuthUser || ! $usernameAuthUser));
-
-        if ($usernameAuthUser && (! $existingAuthUser || (string) $usernameAuthUser['id'] !== (string) $existingAuthUser['id'])) {
-            DB::table('pending_registrations')->where('id', $id)->update(['status' => 'pending', 'updated_at' => now()]);
-
-            return response()->json(['error' => 'This username is already linked to a different account. Choose another username before approving.'], 409);
-        }
-
-        $reusedAuthUser = $existingAuthUser !== null;
-        if ($existingAuthUser) {
-            $existingRole = strtolower((string) data_get($existingAuthUser, 'user_metadata.role', ''));
-            $existingUsername = UsernameIdentity::normalize((string) data_get($existingAuthUser, 'user_metadata.username', ''));
-            if (PhoneNumber::normalize((string) ($existingAuthUser['phone'] ?? '')) !== (string) $registration->phone_number
-                || $existingRole !== $role
-                || ($existingUsername !== '' && $existingUsername !== $metadata['username'])) {
-                Log::warning('A pending registration matched an incompatible existing Auth account.', [
-                    'registration_id' => $id,
-                    'role' => $role,
-                    'auth_users_id' => $existingAuthUser['id'],
-                ]);
-                DB::table('pending_registrations')->where('id', $id)->update(['status' => 'pending', 'updated_at' => now()]);
-
-                return response()->json(['error' => 'This mobile number is already attached to a different account. Contact the administrator to resolve the duplicate account.'], 409);
-            }
-        }
-
-        if ($existingAuthUser) {
-            $authUserId = (string) $existingAuthUser['id'];
-            $existingMetadata = is_array($existingAuthUser['user_metadata'] ?? null) ? $existingAuthUser['user_metadata'] : [];
-            $authResponse = Http::withHeaders($this->getHeaders())
-                ->timeout(10)
-                ->put("{$supabaseUrl}/auth/v1/admin/users/".urlencode($authUserId), [
-                    'email' => $authEmail,
-                    'email_confirm' => true,
-                    'phone' => (string) $registration->phone_number,
-                    'phone_confirm' => true,
-                    'password' => $password,
-                    'user_metadata' => array_merge($existingMetadata, $metadata),
-                ]);
-        } else {
-            $authResponse = Http::withHeaders($this->getHeaders())
-                ->timeout(10)
-                ->post("{$supabaseUrl}/auth/v1/admin/users", [
-                    'email' => $authEmail,
-                    'email_confirm' => true,
-                    'phone' => (string) $registration->phone_number,
-                    'password' => $password,
-                    'phone_confirm' => true,
-                    'user_metadata' => $metadata,
-                ]);
-        }
-
-        if ($authResponse->failed()) {
-            Log::warning('Supabase rejected Auth account creation or repair during approval.', [
-                'registration_id' => $id,
-                'role' => $role,
-                'status' => $authResponse->status(),
-                'response' => $authResponse->body(),
-            ]);
-            DB::table('pending_registrations')->where('id', $id)->update(['status' => 'pending', 'updated_at' => now()]);
-
-            $status = in_array($authResponse->status(), [409, 422], true) ? 409 : 500;
-
-            return response()->json([
-                'error' => $authResponse->json('message')
-                    ?? $authResponse->json('msg')
-                    ?? 'Supabase could not create the approved account. Check the application log for the Supabase error.',
-            ], $status);
-        }
-
-        $authUser = $authResponse->json();
-        $authUserId = $existingAuthUser
-            ? (string) $existingAuthUser['id']
-            : (is_array($authUser) ? ($authUser['id'] ?? null) : null);
-        if (! is_string($authUserId) || $authUserId === '') {
-            DB::table('pending_registrations')->where('id', $id)->update(['status' => 'pending', 'updated_at' => now()]);
-
-            return response()->json(['error' => 'Supabase created no usable account ID.'], 500);
-        }
-
-        $existingProfileId = null;
-        if ($role === 'parent') {
-            $existingProfileResponse = Http::withHeaders($this->getHeaders())
-                ->get("{$supabaseUrl}/rest/v1/parents", [
-                    'select' => 'id',
-                    'auth_users_id' => 'eq.'.$authUserId,
-                    'limit' => 1,
-                ]);
-            if ($existingProfileResponse->failed()) {
-                Log::error('Unable to check for an existing parent profile during approval.', [
-                    'registration_id' => $id,
-                    'auth_users_id' => $authUserId,
-                    'response' => $existingProfileResponse->body(),
-                ]);
-                DB::table('pending_registrations')->where('id', $id)->update(['status' => 'pending', 'updated_at' => now()]);
-
-                return response()->json(['error' => 'Unable to check for an existing parent profile. Please retry approval.'], 500);
-            }
-            $existingProfile = collect($existingProfileResponse->json())->first();
-            $existingProfileId = is_array($existingProfile) ? (string) ($existingProfile['id'] ?? '') : null;
-            $existingProfileId = $existingProfileId !== '' ? $existingProfileId : null;
-
-            $profileResponse = saveParentProfileToSupabase($supabaseUrl, $serviceKey, [
-                ...NameParts::split((string) ($details['full_name'] ?? '')),
-                'auth_users_id' => $authUserId,
-                'phone_number' => (string) $registration->phone_number,
-                'relationship' => (string) ($details['relationship'] ?? ''),
-
-                'is_active' => true,
-                'is_approved' => true,
-            ], $existingProfileId);
-        } else {
-            $existingProfileResponse = Http::withHeaders($this->getHeaders())
-                ->get("{$supabaseUrl}/rest/v1/staff", [
-                    'select' => 'id',
-                    'auth_users_id' => 'eq.'.$authUserId,
-                    'limit' => 1,
-                ]);
-            if ($existingProfileResponse->failed()) {
-                Log::error('Unable to check for an existing staff profile during approval.', [
-                    'registration_id' => $id,
-                    'auth_users_id' => $authUserId,
-                    'response' => $existingProfileResponse->body(),
-                ]);
-                DB::table('pending_registrations')->where('id', $id)->update(['status' => 'pending', 'updated_at' => now()]);
-
-                return response()->json(['error' => 'Unable to check for an existing staff profile. Please retry approval.'], 500);
-            }
-            $existingProfile = collect($existingProfileResponse->json())->first();
-            $hasExistingProfile = is_array($existingProfile);
-            $profilePayload = [
-                'id' => $authUserId,
-                'auth_users_id' => $authUserId,
-                    ...NameParts::split((string) ($details['full_name'] ?? '')),
-                    'phone_number' => (string) $registration->phone_number,
-                    'is_approved' => true,
-                    'is_active' => true,
-            ];
-            $staffRequest = Http::withHeaders($this->getHeaders())
-                ->withHeaders(['Prefer' => 'return=representation']);
-            $profileResponse = $hasExistingProfile
-                ? $staffRequest->patch("{$supabaseUrl}/rest/v1/staff?auth_users_id=eq.".urlencode($authUserId), $profilePayload)
-                : $staffRequest->post("{$supabaseUrl}/rest/v1/staff", $profilePayload);
-        }
-
-        $profile = $profileResponse->successful() ? collect($profileResponse->json())->first() : null;
-        if ($profileResponse->failed() || ! is_array($profile)) {
-            $deleteAuthResponse = $reusedAuthUser
-                ? null
-                : Http::withHeaders($this->getHeaders())
-                    ->delete("{$supabaseUrl}/auth/v1/admin/users/".urlencode($authUserId));
-
-            if ($deleteAuthResponse && $deleteAuthResponse->failed()) {
-                Log::error('Approved account profile creation failed and the new Auth user could not be rolled back.', [
-                    'registration_id' => $id,
-                    'auth_users_id' => $authUserId,
-                    'role' => $role,
-                    'profile_response' => $profileResponse->body(),
-                    'rollback_response' => $deleteAuthResponse->body(),
-                ]);
-
-                return response()->json([
-                    'error' => 'The account was created, but its profile failed and automatic cleanup also failed. Contact an administrator before retrying.',
-                ], 500);
-            }
-
-            if ($reusedAuthUser) {
-                Log::error('A reused Auth account was updated but its profile could not be created or updated.', [
-                    'registration_id' => $id,
-                    'auth_users_id' => $authUserId,
-                    'role' => $role,
-                    'profile_response' => $profileResponse->body(),
-                ]);
-            }
-
-            DB::table('pending_registrations')->where('id', $id)->update(['status' => 'pending', 'updated_at' => now()]);
-
-            return response()->json([
-                'error' => $profileResponse->json('message')
-                    ?? ($reusedAuthUser
-                        ? 'The existing sign-in account was updated, but its profile could not be saved. Retry approval.'
-                        : 'The approved account profile could not be created. No Auth account was retained.'),
-            ], 500);
-        }
-
-        if ($role === 'parent') {
-            $parentStudentIds = $details['student_ids'] ?? (isset($details['student_id']) ? [$details['student_id']] : []);
-            $linkError = $this->syncParentStudentLinks(
-                $supabaseUrl,
-                $serviceKey,
-                (int) $profile['id'],
-                is_array($parentStudentIds) ? $parentStudentIds : [],
-                (string) ($details['relationship'] ?? '')
-            );
-            if ($linkError) {
-                Log::error('Parent account was approved but its student associations could not be saved.', [
-                    'registration_id' => $id,
-                    'parent_id' => $profile['id'],
-                    'response' => $linkError->body(),
-                ]);
-                DB::table('pending_registrations')->where('id', $id)->update(['status' => 'pending', 'updated_at' => now()]);
-
-                return response()->json([
-                    'error' => 'The parent profile was saved, but one or more student links could not be saved. Retry approval.',
-                ], 502);
-            }
-        }
-
-        DB::table('pending_registrations')->where('id', $id)->delete();
-
-        return $this->accountDecisionResponse(
-            $smsService,
-            (string) $registration->phone_number,
-            $role,
-            true,
-            ucfirst($role).' account approved and created.',
-            ['user_id' => $authUserId]
-        );
     }
 
     private function deleteDeclinedAccount(string $table, string $id, ?string $authUserIdColumn, string $role, SmsService $smsService): JsonResponse
@@ -1160,6 +797,8 @@ class AdminController extends Controller
 
             $parents = $parentsData->map(function (array $parent) use ($students, $linksByParent, $parentUsernamesById): array {
                 $parent['username'] = $parentUsernamesById[(string) ($parent['auth_users_id'] ?? '')] ?? null;
+                $parent['is_pending_registration'] = ($parent['is_approved'] ?? false) !== true
+                    && ($parent['is_active'] ?? true) !== false;
 
                 $phoneNumber = $parent['phone_number'] ?? $parent['mobile_number'] ?? null;
                 if (in_array(strtolower(trim((string) $phoneNumber)), ['null', 'undefined'], true)) {
@@ -1192,40 +831,7 @@ class AdminController extends Controller
 
                 return $this->decorateName($parent);
             });
-            $pendingParents = collect($this->pendingRegistrationRows('parent'))
-                ->map(function (array $registration) use ($students): array {
-                    $details = $registration['details'];
-                    $studentIds = $details['student_ids'] ?? (isset($details['student_id']) ? [$details['student_id']] : []);
-                    $linkedStudentNames = collect(is_array($studentIds) ? $studentIds : [])
-                        ->map(fn ($studentId) => $students->get($studentId))
-                        ->filter(fn ($student) => is_array($student))
-                        ->map(fn (array $student): string => trim(implode(' ', array_filter([
-                            $student['first_name'] ?? null,
-                            $student['middle_name'] ?? null,
-                            $student['last_name'] ?? null,
-                        ]))))
-                        ->implode(', ');
-                    $nameParts = NameParts::split((string) ($details['full_name'] ?? ''));
-
-                    return $this->decorateName([
-                        'id' => $registration['id'],
-                        'parent_id' => $registration['id'],
-                        'auth_users_id' => null,
-                        ...$nameParts,
-                        'student_ids' => is_array($studentIds) ? $studentIds : [],
-                        'student_id' => $studentIds[0] ?? $details['student_id'] ?? null,
-                        'linked_student_name' => $linkedStudentNames ?: ($details['student_name'] ?? null),
-                        'relationship' => $details['relationship'] ?? null,
-                        'username' => $details['username'] ?? null,
-                        'phone_number' => $registration['phone_number'],
-                        'mobile_number' => $registration['phone_number'],
-                        'is_approved' => false,
-                        'is_active' => true,
-                        'is_pending_registration' => true,
-                        'created_at' => $registration['created_at'],
-                    ]);
-                });
-            $parents = $parents->concat($pendingParents)->all();
+            $parents = $parents->all();
             $totalParents = count($parents);
             $approvedParents = collect($parents)->filter(fn ($p) => (bool) ($p['is_approved'] ?? false))->count();
             $pendingParents = collect($parents)
@@ -1336,11 +942,6 @@ class AdminController extends Controller
         ]);
 
         if (array_key_exists('is_approved', $data)) {
-            $pendingResponse = $this->reviewPendingRegistration($id, 'parent', (bool) $data['is_approved'], $smsService);
-            if ($pendingResponse) {
-                return $pendingResponse;
-            }
-
             if (! (bool) $data['is_approved']) {
                 return $this->deleteDeclinedAccount('parents', $id, 'auth_users_id', 'parent', $smsService);
             }
@@ -1439,14 +1040,6 @@ class AdminController extends Controller
 
     public function deleteParent(string $id): JsonResponse
     {
-        $pendingDeleted = DB::table('pending_registrations')
-            ->where('id', $id)
-            ->where('role', 'parent')
-            ->delete();
-        if ($pendingDeleted > 0) {
-            return response()->json(['message' => 'Pending parent registration deleted.']);
-        }
-
         $supabaseUrl = $this->supabaseUrl();
         if (! $supabaseUrl || ! $this->serviceKey()) {
             return response()->json(['error' => 'Supabase configuration is missing'], 500);
@@ -1571,11 +1164,6 @@ class AdminController extends Controller
                 }
             }
 
-            $pendingRegistrations = count($this->pendingRegistrationRows('staff'));
-
-            $total += $pendingRegistrations;
-            $pending += $pendingRegistrations;
-
             return ['total' => $total, 'approved' => $approved, 'pending' => $pending, 'administrators' => $administrators];
         } catch (\Exception $e) {
             Log::warning('Error fetching staff stats: ' . $e->getMessage());
@@ -1614,27 +1202,12 @@ class AdminController extends Controller
             $staffUsernamesById = $this->authUsernamesById($staffRecords->pluck('auth_users_id')->all(), 'staff profiles');
             $staff = $staffRecords->map(function (array $member) use ($staffUsernamesById): array {
                 $member['username'] = $staffUsernamesById[(string) ($member['auth_users_id'] ?? '')] ?? null;
+                $member['is_pending_registration'] = ($member['is_approved'] ?? false) !== true
+                    && ($member['is_active'] ?? true) !== false;
 
                 return $this->decorateName($member);
             });
-            $pendingStaff = collect($this->pendingRegistrationRows('staff'))
-                ->map(function (array $registration): array {
-                    $details = $registration['details'];
-                    $nameParts = NameParts::split((string) ($details['full_name'] ?? ''));
-
-                    return $this->decorateName([
-                        'id' => $registration['id'],
-                        ...$nameParts,
-                        'username' => $details['username'] ?? null,
-                        'phone_number' => $registration['phone_number'],
-                        'is_approved' => false,
-                        'is_active' => true,
-                        'is_pending_registration' => true,
-                        'created_at' => $registration['created_at'],
-                    ]);
-                });
-
-            return response()->json($staff->concat($pendingStaff)->all());
+            return response()->json($staff->all());
         }
 
         $staffStats = $this->getStaffStats();
@@ -1653,11 +1226,6 @@ class AdminController extends Controller
         ]);
 
         if (array_key_exists('is_approved', $data)) {
-            $pendingResponse = $this->reviewPendingRegistration($id, 'staff', (bool) $data['is_approved'], $smsService);
-            if ($pendingResponse) {
-                return $pendingResponse;
-            }
-
             if (! (bool) $data['is_approved']) {
                 return $this->deleteDeclinedAccount('staff', $id, 'auth_users_id', 'staff', $smsService);
             }

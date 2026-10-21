@@ -846,50 +846,159 @@ Route::post('/supabase/register-user', function (Request $request, PhoneNumberRe
         ]);
     }
 
-    $pendingUsernames = DB::table('pending_registrations')
-        ->where('status', 'pending')
-        ->pluck('details');
-    foreach ($pendingUsernames as $pendingDetails) {
-        $pending = json_decode((string) $pendingDetails, true);
-        if (is_array($pending)
-            && UsernameIdentity::normalize((string) ($pending['username'] ?? '')) === $username) {
-            return response()->json(['message' => 'That username is already in use or awaiting approval. Choose another username.'], 409);
+    $authEmail = UsernameIdentity::authEmail($username);
+    $authHeaders = [
+        'apikey' => $serviceKey,
+        'Authorization' => 'Bearer '.$serviceKey,
+        'Accept' => 'application/json',
+        'Content-Type' => 'application/json',
+    ];
+    $page = 1;
+    do {
+        $usersResponse = Http::withHeaders($authHeaders)
+            ->timeout(10)
+            ->get(rtrim($supabaseUrl, '/').'/auth/v1/admin/users', [
+                'page' => $page,
+                'per_page' => 100,
+            ]);
+
+        if ($usersResponse->failed() || ! is_array($usersResponse->json('users'))) {
+            Log::error('Unable to check existing usernames during registration.', [
+                'role' => $role,
+                'status' => $usersResponse->status(),
+            ]);
+
+            return response()->json(['message' => 'Registration is temporarily unavailable while we check this username. Please try again.'], 503);
         }
+
+        $users = $usersResponse->json('users');
+        foreach ($users as $user) {
+            if (is_array($user)
+                && (UsernameIdentity::normalize((string) data_get($user, 'user_metadata.username', '')) === $username
+                    || strtolower((string) ($user['email'] ?? '')) === $authEmail)) {
+                return response()->json(['message' => 'That username is already in use or awaiting approval. Choose another username.'], 409);
+            }
+        }
+
+        $page++;
+    } while (count($users) === 100);
+
+    $authResponse = Http::withHeaders($authHeaders)
+        ->timeout(10)
+        ->post(rtrim($supabaseUrl, '/').'/auth/v1/admin/users', [
+            'email' => $authEmail,
+            'email_confirm' => true,
+            'phone' => $phoneNumber,
+            'phone_confirm' => true,
+            'password' => (string) $request->input('password'),
+            'user_metadata' => $metadata,
+        ]);
+
+    if ($authResponse->failed()) {
+        Log::warning('Supabase rejected a verified account registration.', [
+            'role' => $role,
+            'status' => $authResponse->status(),
+        ]);
+
+        return response()->json([
+            'message' => $authResponse->json('message')
+                ?? 'Unable to create the account. Check the mobile number and username, then try again.',
+        ], in_array($authResponse->status(), [409, 422], true) ? 409 : 503);
     }
 
-    $details = [
-        ...$metadata,
-        'relationship' => $role === 'parent' ? $request->input('relationship') : null,
-        'student_ids' => $role === 'parent' ? $studentIds : [],
-        'student_id' => $role === 'parent' ? ($studentIds[0] ?? null) : null,
-    ];
-    $registrationId = (string) Str::uuid();
-
-    try {
-        DB::table('pending_registrations')->insert([
-            'id' => $registrationId,
+    $authUserId = $authResponse->json('id');
+    if (! is_string($authUserId) || $authUserId === '') {
+        Log::error('Supabase created a registration without returning an Auth user ID.', [
             'role' => $role,
-            'phone_number' => $phoneNumber,
-            'encrypted_password' => Crypt::encryptString((string) $request->input('password')),
-            'details' => json_encode($details, JSON_THROW_ON_ERROR),
-            'status' => 'pending',
-            'created_at' => now(),
-            'updated_at' => now(),
+            'status' => $authResponse->status(),
         ]);
-    } catch (\Illuminate\Database\QueryException $exception) {
-        $sqlState = (string) ($exception->errorInfo[0] ?? $exception->getCode());
-        if (in_array($sqlState, ['23000', '23505'], true)) {
-            return response()->json(['message' => 'A registration request for this mobile number already exists.'], 409);
-        }
 
-        throw $exception;
+        return response()->json(['message' => 'The account could not be completed. Please contact the administrator.'], 502);
+    }
+
+    $table = $role === 'parent' ? 'parents' : 'staff';
+    $profileId = null;
+    $profilePayload = [
+        ...NameParts::split((string) $request->input('full_name')),
+        'auth_users_id' => $authUserId,
+        'phone_number' => $phoneNumber,
+        'is_approved' => false,
+        'is_active' => true,
+    ];
+
+    if ($role === 'parent') {
+        $profilePayload['relationship'] = (string) $request->input('relationship');
+        $profileResponse = saveParentProfileToSupabase($supabaseUrl, $serviceKey, $profilePayload);
+    } else {
+        $profilePayload['id'] = $authUserId;
+        $profilePayload['email'] = $authEmail;
+        $profileResponse = Http::withHeaders($authHeaders)
+            ->withHeaders(['Prefer' => 'return=representation'])
+            ->post(rtrim($supabaseUrl, '/').'/rest/v1/staff', $profilePayload);
+    }
+
+    $rollbackRegistration = static function () use ($supabaseUrl, $serviceKey, $authHeaders, $authUserId, $table): void {
+        $profileCleanup = Http::withHeaders($authHeaders)
+            ->delete(rtrim($supabaseUrl, '/')."/rest/v1/{$table}?auth_users_id=eq.".urlencode($authUserId));
+        $authCleanup = Http::withHeaders($authHeaders)
+            ->delete(rtrim($supabaseUrl, '/').'/auth/v1/admin/users/'.urlencode($authUserId));
+        if ($profileCleanup->failed() || $authCleanup->failed()) {
+            Log::error('Registration rollback could not fully remove its account records.', [
+                'role' => $table === 'parents' ? 'parent' : 'staff',
+                'auth_users_id' => $authUserId,
+                'profile_cleanup_status' => $profileCleanup->status(),
+                'auth_cleanup_status' => $authCleanup->status(),
+            ]);
+        }
+    };
+
+    if ($profileResponse->failed()) {
+        $rollbackRegistration();
+        Log::error('Unable to create the profile for a verified registration.', [
+            'role' => $role,
+            'auth_users_id' => $authUserId,
+            'status' => $profileResponse->status(),
+            'response' => $profileResponse->body(),
+        ]);
+
+        return response()->json(['message' => 'The account was created but its profile could not be saved. Please try again or contact the administrator.'], 502);
+    }
+
+    $profile = collect($profileResponse->json())->first();
+    if (! is_array($profile) || empty($profile['id'])) {
+        $rollbackRegistration();
+
+        return response()->json(['message' => 'The account profile could not be confirmed. Please try again.'], 502);
+    }
+
+    $profileId = $profile['id'];
+    if ($role === 'parent') {
+        foreach ($studentIds as $studentId) {
+            $linkResponse = ParentStudentLinks::upsert(
+                $supabaseUrl,
+                $serviceKey,
+                $profileId,
+                $studentId,
+                (string) $request->input('relationship')
+            );
+            if ($linkResponse->failed()) {
+                $rollbackRegistration();
+                Log::error('Parent registration profile was created but a student link failed.', [
+                    'parent_id' => $profileId,
+                    'student_id' => $studentId,
+                    'status' => $linkResponse->status(),
+                ]);
+
+                return response()->json(['message' => 'The parent profile could not be linked to the selected student. Please try again.'], 502);
+            }
+        }
     }
 
     Cache::forget($verificationCacheKey);
 
     return response()->json([
-        'request_id' => $registrationId,
-        'message' => 'Registration submitted. Your account will be created after administrator approval.',
+        'request_id' => $profileId,
+        'message' => 'Registration submitted. Your account is pending administrator approval before you can sign in.',
     ], 202);
 });
 

@@ -36,6 +36,11 @@ Your admin system provides a complete dashboard for managing students, parents, 
 
 ### Database Schema
 
+New parent and staff signups create profiles in the existing `parents` and
+`staff` tables with `is_approved = false`. The Pending Registrations page lists
+those unapproved profiles; approval updates the existing profile. Registration
+requests do not use a separate Supabase table.
+
 A new `admin` table has been added to your Supabase database:
 ```sql
 CREATE TABLE public.admin (
@@ -158,15 +163,17 @@ Do not remove the legacy email column yet; it may still be used internally to ve
 - ✅ View staff contact information
 
 ### Approval-gated account creation
-- New parent and staff registrations are saved as encrypted pending requests after the phone OTP is verified.
-- A Supabase Auth user and the matching parent/staff profile are created only after an administrator approves the request.
-- Declining a staged request removes it without creating an Auth user. Declining an existing legacy account permanently deletes its Supabase Auth user and linked profile.
+- After phone OTP verification, registration creates a Supabase Auth user and a matching profile in the existing `parents` or `staff` table. The profile starts with `is_approved = false`, so the account cannot access its portal until an administrator approves it.
+- Parent registration also creates the selected links in the existing `parents_students` table.
+- Approval updates the profile's `is_approved` field. Decline permanently deletes the pending profile and its linked Supabase Auth user.
 - Parent and staff receive an SMS after an approval or decline. If SMS delivery fails, the account decision remains saved, the admin is warned, and the failure is logged.
-- Pending passwords are encrypted with Laravel `APP_KEY` in the application's database. Keep the same `APP_KEY` available when requests are approved; losing or changing it makes pending passwords unreadable.
 
-Before deploying this change, run `php artisan migrate --force` against the same persistent Laravel database used by the web application. The new `pending_registrations` table is required for signup and approval.
-
-Registrations made before this change may already have a Supabase Auth user while awaiting approval. They are intentionally left untouched so their existing credentials and profiles are not deleted; manage those legacy pending accounts in the existing admin list.
+No separate Supabase registration table is required. To remove the temporary
+`public.pending_registrations` table created by the earlier setup, first check
+whether it contains rows, then run
+[`database/supabase/2026_10_21_drop_pending_registrations.sql`](./database/supabase/2026_10_21_drop_pending_registrations.sql)
+in the Supabase SQL Editor. The script refuses to drop a non-empty table so
+registration data is not silently lost.
 
 ### Reports & Analytics
 - ✅ View pickup statistics

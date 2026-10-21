@@ -282,7 +282,7 @@ async function handleRegister(event) {
         return;
     }
 
-    showMessage('Account submitted. Your mobile number is verified. Please wait for administrator approval before signing in.', false);
+    showMessage(payload.message || 'Registration submitted. Your account is pending administrator approval before you can sign in.', false);
     registerForm.reset();
 
     setTimeout(() => {

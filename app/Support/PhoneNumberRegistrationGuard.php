@@ -2,7 +2,6 @@
 
 namespace App\Support;
 
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -10,15 +9,7 @@ final class PhoneNumberRegistrationGuard
 {
     public function isRegistered(string $phoneNumber, string $supabaseUrl, string $serviceKey): bool
     {
-        PendingRegistrationSchema::ensure();
-
         $normalizedPhone = PhoneNumber::normalize($phoneNumber);
-        foreach (DB::table('pending_registrations')->pluck('phone_number') as $pendingPhone) {
-            if (PhoneNumber::normalize((string) $pendingPhone) === $normalizedPhone) {
-                return true;
-            }
-        }
-
         $baseUrl = rtrim($supabaseUrl, '/');
         $headers = [
             'apikey' => $serviceKey,

@@ -3,10 +3,8 @@
 namespace Tests\Feature;
 
 use App\Services\SmsService;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class ParentProfileSyncTest extends TestCase
@@ -182,19 +180,8 @@ class ParentProfileSyncTest extends TestCase
             ->assertJsonPath('parent.id', 42);
     }
 
-    public function test_parent_registration_is_staged_until_admin_approval(): void
+    public function test_parent_registration_creates_an_unapproved_profile_for_admin_review(): void
     {
-        Schema::create('pending_registrations', function (Blueprint $table): void {
-            $table->uuid('id')->primary();
-            $table->string('role', 20);
-            $table->string('phone_number', 20)->unique();
-            $table->longText('encrypted_password');
-            $table->json('details');
-            $table->string('status', 20)->default('pending');
-            $table->timestamps();
-            $table->index(['role', 'status']);
-        });
-
         $otp = null;
         config(['services.sms.driver' => 'gsm']);
         $smsService = \Mockery::mock(SmsService::class);
@@ -210,8 +197,29 @@ class ParentProfileSyncTest extends TestCase
         $this->app->instance(SmsService::class, $smsService);
 
         Http::fake(function ($request) {
-            if (str_contains($request->url(), '/auth/v1/admin/users')) {
+            if (str_contains($request->url(), '/auth/v1/admin/users') && $request->method() === 'GET') {
                 return Http::response(['users' => []], 200);
+            }
+            if (str_contains($request->url(), '/auth/v1/admin/users') && $request->method() === 'POST') {
+                return Http::response(['id' => 'pending-parent-auth-id'], 201);
+            }
+            if (str_contains($request->url(), '/rest/v1/parents')
+                && ! str_contains($request->url(), '/rest/v1/parents_students')
+                && $request->method() === 'POST') {
+                return Http::response([[
+                    'id' => 42,
+                    'auth_users_id' => 'pending-parent-auth-id',
+                    'first_name' => 'Jane',
+                    'middle_name' => null,
+                    'last_name' => 'Doe',
+                    'phone_number' => '+639170001111',
+                    'relationship' => 'Mother',
+                    'is_approved' => false,
+                    'is_active' => true,
+                ]], 201);
+            }
+            if (str_contains($request->url(), '/rest/v1/parents_students')) {
+                return Http::response([], 201);
             }
 
             return Http::response([], 200);
@@ -241,18 +249,73 @@ class ParentProfileSyncTest extends TestCase
         ]);
 
         $response->assertStatus(202)
-            ->assertJsonPath('message', 'Registration submitted. Your account will be created after administrator approval.');
+            ->assertJsonPath('message', 'Registration submitted. Your account is pending administrator approval before you can sign in.');
 
-        $this->assertDatabaseHas('pending_registrations', [
-            'phone_number' => '+639170001111',
-            'role' => 'parent',
-            'status' => 'pending',
-        ]);
-        $pendingDetails = json_decode((string) DB::table('pending_registrations')
-            ->where('phone_number', '+639170001111')
-            ->value('details'), true);
-        $this->assertSame([13, 14], $pendingDetails['student_ids']);
-        Http::assertNotSent(fn ($request) => $request->method() !== 'GET');
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/auth/v1/admin/users')
+            && $request->method() === 'POST'
+            && $request->data()['phone'] === '+639170001111'
+            && $request->data()['phone_confirm'] === true
+            && $request->data()['user_metadata']['username'] === 'janedoe');
+        Http::assertSent(function ($request) {
+            if (str_contains($request->url(), '/rest/v1/parents') && $request->method() === 'POST') {
+                return ($request->data()['auth_users_id'] ?? null) === 'pending-parent-auth-id'
+                    && ($request->data()['is_approved'] ?? null) === false
+                    && ($request->data()['is_active'] ?? null) === true;
+            }
+
+            return false;
+        });
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/rest/v1/parents_students')
+            && $request->method() === 'POST'
+            && count($request->data()) === 1
+            && ($request->data()[0]['parents_id'] ?? null) === 42
+            && ($request->data()[0]['students_id'] ?? null) === 13);
+        $this->assertTrue(Cache::missing('signup-phone-verification:'.$flowId));
+    }
+
+    public function test_unapproved_parent_profiles_appear_in_the_admin_list(): void
+    {
+        Http::fake(function ($request) {
+            if (str_contains($request->url(), '/rest/v1/parents_students')) {
+                return Http::response([
+                    ['parents_id' => 42, 'students_id' => 13, 'relationship' => 'Mother'],
+                    ['parents_id' => 42, 'students_id' => 14, 'relationship' => 'Mother'],
+                ], 200);
+            }
+            if (str_contains($request->url(), '/rest/v1/parents')) {
+                return Http::response([[
+                    'id' => 42,
+                    'auth_users_id' => 'pending-parent-auth-id',
+                    'first_name' => 'Jane',
+                    'middle_name' => null,
+                    'last_name' => 'Doe',
+                    'phone_number' => '+639170001111',
+                    'relationship' => 'Mother',
+                    'is_approved' => false,
+                    'is_active' => true,
+                ]], 200);
+            }
+            if (str_contains($request->url(), '/rest/v1/students')) {
+                return Http::response([
+                    ['id' => 13, 'first_name' => 'Sam', 'last_name' => 'Doe'],
+                ], 200);
+            }
+            if (str_contains($request->url(), '/auth/v1/admin/users')) {
+                return Http::response(['users' => [[
+                    'id' => 'pending-parent-auth-id',
+                    'user_metadata' => ['username' => 'janedoe'],
+                ]]], 200);
+            }
+
+            return Http::response([], 200);
+        });
+        $this->withSession(['admin_id' => 'admin-1'])
+            ->getJson('/admin/parents?format=json')
+            ->assertOk()
+            ->assertJsonPath('parents.0.id', 42)
+            ->assertJsonPath('parents.0.full_name', 'Jane Doe')
+            ->assertJsonPath('parents.0.is_approved', false)
+            ->assertJsonPath('counts.pending_parents', 1);
     }
 
     public function test_parent_can_update_their_password_from_the_profile_page(): void
